@@ -250,9 +250,15 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
     }
 
     @Override
-    public void fillBox(double x, double y, double z, double sX, double sY, double sZ)
+    public void fillBox(double x, double y, double z, double sX, double sY, double sZ, String texture)
     {
         fillBox(x, y, z, sX, sY, sZ, (byte) 0);
+    }
+
+    @Override
+    public void fillBox(double x, double y, double z, double sX, double sY, double sZ, byte options, String texture)
+    {
+        fillBox(x, y, z, sX, sY, sZ, options);
     }
 
     /**

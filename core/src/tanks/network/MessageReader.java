@@ -2,8 +2,8 @@ package tanks.network;
 
 import io.netty.buffer.ByteBuf;
 import tanks.Game;
-import tanks.event.*;
-import tanks.event.online.IOnlineServerEvent;
+import tanks.network.event.online.*;
+import tanks.network.event.*;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.gui.screen.ScreenPartyLobby;
 
@@ -13,10 +13,19 @@ public class MessageReader
 {
 	public static final int max_event_size = 1048576;
 
+	public static int downstreamBytes;
+	public static int upstreamBytes;
+	public static long lastMessageTime;
+
+	public static int upstreamBytesPerSec;
+	public static int downstreamBytesPerSec;
+
 	public boolean useQueue = true;
 	public ByteBuf queue;
 	protected boolean reading = false;
 	protected int endpoint;
+
+	protected int lastID;
 
 	public boolean queueMessage(ByteBuf m, UUID clientID)
 	{
@@ -42,6 +51,8 @@ public class MessageReader
 				if (!reading)
 				{
 					endpoint = queue.readInt();
+					downstreamBytes += endpoint + 4;
+					updateLastMessageTime();
 
 					if (endpoint > max_event_size)
 					{
@@ -141,7 +152,9 @@ public class MessageReader
 		Class<? extends INetworkEvent> c = NetworkEventMap.get(i);
 
 		if (c == null)
-			throw new Exception("Invalid network event: " + i);
+			throw new Exception("Invalid network event: " + i + " (Previous event: " + NetworkEventMap.get(this.lastID) + ")");
+
+		this.lastID = i;
 
 		INetworkEvent e = c.getConstructor().newInstance();
 		e.read(m);
@@ -166,5 +179,19 @@ public class MessageReader
 		}
 
 		return false;
+	}
+
+	public static void updateLastMessageTime()
+	{
+		long time = System.currentTimeMillis() / 1000;
+
+		if (lastMessageTime < time)
+		{
+			lastMessageTime = time;
+			upstreamBytesPerSec = upstreamBytes;
+			downstreamBytesPerSec = downstreamBytes;
+			upstreamBytes = 0;
+			downstreamBytes = 0;
+		}
 	}
 }

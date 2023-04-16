@@ -14,8 +14,8 @@ import tanks.tank.TankAIControlled;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 
 public class ScreenAddSavedTank extends Screen implements IConditionalOverlayScreen
 {
@@ -99,7 +99,7 @@ public class ScreenAddSavedTank extends Screen implements IConditionalOverlayScr
                 if (tt instanceof TankAIControlled)
                 {
                     t = (TankAIControlled) tt;
-                    ArrayList<String> m = Game.registryTank.tankMusics.get(t.name);
+                    HashSet<String> m = Game.registryTank.tankMusics.get(t.name);
 
                     if (m != null)
                         t.musicTracks.addAll(m);
@@ -146,8 +146,7 @@ public class ScreenAddSavedTank extends Screen implements IConditionalOverlayScr
         this.previousTankPage.imageSizeY = 25;
         this.previousTankPage.imageXOffset = -145;
 
-        delete.textOffsetY = -1;
-        delete.textOffsetX = 1;
+        delete.textOffsetY = -2.5;
 
         delete.textColR = 255;
         delete.textColG = 255;

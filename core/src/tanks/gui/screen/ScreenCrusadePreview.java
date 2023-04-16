@@ -2,7 +2,7 @@ package tanks.gui.screen;
 
 import basewindow.BaseFile;
 import tanks.*;
-import tanks.event.EventShareCrusade;
+import tanks.network.event.EventShareCrusade;
 import tanks.gui.Button;
 import tanks.gui.ButtonList;
 import tanks.gui.TextBox;
@@ -172,7 +172,9 @@ public class ScreenCrusadePreview extends Screen implements IItemScreen
                 String level = crusade.levels.get(j).levelString;
 
                 ScreenCrusadePreviewLevel s = new ScreenCrusadePreviewLevel(crusade, level, j, Game.screen);
-                new Level(level).loadLevel(s);
+                Level l = new Level(level);
+                l.customTanks = crusade.customTanks;
+                l.loadLevel(s);
                 Game.screen = s;
             }));
         }

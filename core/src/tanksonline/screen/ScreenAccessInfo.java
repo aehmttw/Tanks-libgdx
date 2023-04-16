@@ -10,14 +10,10 @@ public class ScreenAccessInfo extends ScreenLayout
 {
     public AccessCode accessCode;
 
-    Button back = new Button(sizeX / 2, sizeY / 2 + 180, 350, 40, "Back", new Runnable()
+    Button back = new Button(sizeX / 2, sizeY / 2 + 180, 350, 40, "Back", () ->
     {
-        @Override
-        public void run()
-        {
-            ScreenHome s = new ScreenHome(player);
-            s.setScreen();
-        }
+        ScreenHome s = new ScreenHome(player);
+        s.setScreen();
     }
     );
 
@@ -37,7 +33,7 @@ public class ScreenAccessInfo extends ScreenLayout
         super(player);
         this.accessCode = accessCode;
 
-        this.music = "tomato_feast_3.ogg";
+        this.music = "menu_3.ogg";
         this.musicID = "menu";
 
         this.texts.add(new ScreenOnline.Text("My account", sizeX / 2, sizeY / 2 - 120, 24, 0));

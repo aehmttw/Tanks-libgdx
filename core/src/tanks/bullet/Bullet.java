@@ -1,14 +1,15 @@
 package tanks.bullet;
 
 import tanks.*;
-import tanks.event.*;
+import tanks.minigames.Arcade;
 import tanks.gui.ChatMessage;
 import tanks.gui.IFixedMenu;
 import tanks.gui.Scoreboard;
 import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyHost;
-import tanks.gui.screen.ScreenPartyLobby;
 import tanks.hotbar.item.ItemBullet;
+import tanks.minigames.Minigame;
+import tanks.network.event.*;
 import tanks.obstacle.Obstacle;
 import tanks.tank.*;
 
@@ -93,6 +94,7 @@ public class Bullet extends Movable implements IDrawable
 	protected double lastTrailAngle = -1;
 
 	public double speed = 0;
+	public boolean justBounced = false;
 
 	public Bullet(double x, double y, int bounces, Tank t, ItemBullet item)
 	{
@@ -133,23 +135,10 @@ public class Bullet extends Movable implements IDrawable
 		if (!this.tank.isRemote && this.affectsMaxLiveBullets)
 			this.item.liveBullets++;
 
-		for (AttributeModifier a: this.tank.attributes)
-		{
-			if (a.name.equals("bullet_boost"))
-			{
-				AttributeModifier c = new AttributeModifier("boost_speed", "velocity", AttributeModifier.Operation.multiply, a.value);
-				c.duration = a.duration;
-				c.deteriorationAge = a.deteriorationAge;
-				c.age = a.age;
-				this.addUnduplicateAttribute(c);
+		AttributeModifier a = this.tank.getAttribute(AttributeModifier.bullet_boost);
 
-				AttributeModifier b = new AttributeModifier("boost_glow", "glow", AttributeModifier.Operation.multiply, 1);
-				b.duration = a.duration;
-				b.deteriorationAge = a.deteriorationAge;
-				b.age = a.age;
-				this.addUnduplicateAttribute(b);
-			}
-		}
+		if (a != null)
+			this.addStatusEffect(StatusEffect.boost_bullet, a.age, 0, a.deteriorationAge, a.duration);
 
 		this.trails = (ArrayList<Trail>[])(new ArrayList[10]);
 
@@ -225,11 +214,13 @@ public class Bullet extends Movable implements IDrawable
 				if (!this.heavy)
 					this.destroy = true;
 
-				if (Game.currentLevel instanceof ModLevel)
+				if (Game.currentLevel instanceof Minigame)
 				{
-					if (((ModLevel) Game.currentLevel).enableKillMessages && ScreenPartyHost.isServer)
+					((Minigame) Game.currentLevel).onKill(this.tank, t);
+
+					if (((Minigame) Game.currentLevel).enableKillMessages && ScreenPartyHost.isServer)
 					{
-						String message = ((ModLevel) Game.currentLevel).generateKillMessage(t, this.tank, true);
+						String message = ((Minigame) Game.currentLevel).generateKillMessage(t, this.tank, true);
 						ScreenPartyHost.chat.add(0, new ChatMessage(message));
 						Game.eventsOut.add(new EventChat(message));
 					}
@@ -252,8 +243,8 @@ public class Bullet extends Movable implements IDrawable
 
 				if (this.tank.equals(Game.playerTank))
 				{
-					if (Game.currentLevel instanceof ModLevel && (t instanceof TankPlayer || t instanceof TankPlayerRemote))
-						Game.player.hotbar.coins += ((ModLevel) Game.currentLevel).playerKillCoins;
+					if (Game.currentLevel instanceof Minigame && (t instanceof TankPlayer || t instanceof TankPlayerRemote))
+						Game.player.hotbar.coins += ((Minigame) Game.currentLevel).playerKillCoins;
 					else
 						Game.player.hotbar.coins += t.coinValue;
 				}
@@ -270,17 +261,17 @@ public class Bullet extends Movable implements IDrawable
 						Game.eventsOut.add(new EventUpdateCoins(((TankPlayerRemote) this.tank).player));
 					}
 				}
-				else if (Game.currentLevel instanceof ModLevel && ((ModLevel) Game.currentLevel).playerKillCoins > 0)
+				else if (Game.currentLevel instanceof Minigame && ((Minigame) Game.currentLevel).playerKillCoins > 0)
 				{
 					if (this.tank instanceof TankPlayer)
 					{
-						((TankPlayer) this.tank).player.hotbar.coins += ((ModLevel) Game.currentLevel).playerKillCoins;
+						((TankPlayer) this.tank).player.hotbar.coins += ((Minigame) Game.currentLevel).playerKillCoins;
 						Game.eventsOut.add(new EventUpdateCoins(((TankPlayer) this.tank).player));
 					}
 
 					else if (this.tank instanceof TankPlayerRemote)
 					{
-						((TankPlayerRemote) this.tank).player.hotbar.coins += ((ModLevel) Game.currentLevel).playerKillCoins;
+						((TankPlayerRemote) this.tank).player.hotbar.coins += ((Minigame) Game.currentLevel).playerKillCoins;
 						Game.eventsOut.add(new EventUpdateCoins(((TankPlayerRemote) this.tank).player));
 					}
 				}
@@ -568,6 +559,8 @@ public class Bullet extends Movable implements IDrawable
 			else
 				this.bouncyBounces--;
 
+			this.justBounced = true;
+
 			if (this.bounces < 0 || this.bouncyBounces < 0 || !allowBounce)
 			{
 				if (this.playPopSound)
@@ -598,8 +591,10 @@ public class Bullet extends Movable implements IDrawable
 	@Override
 	public void update()
 	{
-		if (!this.isRemote && (this.vX != this.lastVX || this.lastVY != this.lastVY))
+		if (!this.isRemote && ScreenPartyHost.isServer && (this.vX != this.lastVX || this.vY != this.lastVY) && !justBounced)
 			Game.eventsOut.add(new EventBulletUpdate(this));
+
+		this.justBounced = false;
 
 		super.update();
 
@@ -607,6 +602,7 @@ public class Bullet extends Movable implements IDrawable
 		{
 			this.collisionX = this.posX;
 			this.collisionY = this.posY;
+
 			this.addTrail();
 		}
 
@@ -676,7 +672,7 @@ public class Bullet extends Movable implements IDrawable
 
 			if (Game.bulletTrails)
 			{
-				while (this.ageFrac >= 1)
+				while (this.ageFrac >= 1 && Game.effectsEnabled)
 				{
 					this.ageFrac -= 1;
 
@@ -868,15 +864,7 @@ public class Bullet extends Movable implements IDrawable
 	@Override
 	public void draw()
 	{
-		double glow = 0.5;
-		for (int i = 0; i < this.attributes.size(); i++)
-		{
-			AttributeModifier a = this.attributes.get(i);
-			if (a.type.equals("glow"))
-			{
-				glow = a.getValue(glow);
-			}
-		}
+		double glow = this.getAttributeValue(AttributeModifier.glow, 0.5);
 
 		if (Game.glowEnabled)
 		{
@@ -938,7 +926,11 @@ public class Bullet extends Movable implements IDrawable
 			Drawing.drawing.setColor(this.outlineColorR, this.outlineColorG, this.outlineColorB, opacity * opacity * opacity * 255.0, glow);
 
 			if (Game.enable3d)
+			{
+				if (Game.xrayBullets)
+					Drawing.drawing.fillOval(posX, posY, posZ - 0.5, size + sizeModifier, size + sizeModifier, false, true);
 				Drawing.drawing.fillOval(posX, posY, posZ, size + sizeModifier, size + sizeModifier);
+			}
 			else
 				Drawing.drawing.fillOval(posX, posY, size + sizeModifier, size + sizeModifier);
 

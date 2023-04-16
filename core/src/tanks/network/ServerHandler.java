@@ -9,9 +9,9 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
 import tanks.Game;
 import tanks.Player;
-import tanks.event.*;
 import tanks.gui.ChatMessage;
 import tanks.gui.screen.ScreenPartyHost;
+import tanks.network.event.*;
 
 import java.util.UUID;
 
@@ -82,6 +82,8 @@ public class ServerHandler extends ChannelInboundHandlerAdapter
 				ScreenPartyHost.chat.add(0, new ChatMessage("\u00A7000127255255" + this.username + " has left the party\u00A7000000000255"));
 			}
 		}
+
+		//System.out.println(eventFrequencies);
 	}
 
 	@Override
@@ -144,8 +146,13 @@ public class ServerHandler extends ChannelInboundHandlerAdapter
 		this.sendEvent(e, true);
 	}
 
+	//public HashMap<String, Integer> eventFrequencies = new HashMap<>();
+
 	public synchronized void sendEvent(INetworkEvent e, boolean flush)
 	{
+		//eventFrequencies.putIfAbsent(e.getClass().getSimpleName(), 0);
+		//eventFrequencies.put(e.getClass().getSimpleName(), eventFrequencies.get(e.getClass().getSimpleName()) + 1);
+
 		if (steamID != null)
 		{
 			SteamNetworking.P2PSend sendType = SteamNetworking.P2PSend.ReliableWithBuffering;
@@ -168,6 +175,8 @@ public class ServerHandler extends ChannelInboundHandlerAdapter
 
 		ByteBuf b2 = ctx.channel().alloc().buffer();
 		b2.writeInt(b.readableBytes());
+		MessageReader.upstreamBytes += b.readableBytes() + 4;
+		MessageReader.updateLastMessageTime();
 		b2.writeBytes(b);
 
 		if (flush)

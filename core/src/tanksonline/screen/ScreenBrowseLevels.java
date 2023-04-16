@@ -1,10 +1,10 @@
 package tanksonline.screen;
 
 import tanks.Game;
-import tanks.event.online.EventAddButton;
-import tanks.event.online.EventRemoveButton;
 import tanks.gui.Button;
 import tanks.gui.screen.ScreenOnline;
+import tanks.network.event.online.EventAddButton;
+import tanks.network.event.online.EventRemoveButton;
 import tanksonline.PlayerMap;
 import tanksonline.TanksOnlineServerHandler;
 import tanksonline.UploadedLevel;
@@ -19,40 +19,28 @@ public class ScreenBrowseLevels extends ScreenLayout
 	int yoffset = -150;
 	static int page = 0;
 
-	Button quit = new Button(sizeX / 2, sizeY / 2 + 300, 350, 40, "Back", new Runnable()
+	Button quit = new Button(sizeX / 2, sizeY / 2 + 300, 350, 40, "Back", () ->
 	{
-		@Override
-		public void run()
-		{
-			ScreenHome s = new ScreenHome(player);
-			s.setScreen();
-		}
+		ScreenHome s = new ScreenHome(player);
+		s.setScreen();
 	}
-			);
+	);
 
-	Button next = new Button(sizeX / 2 + 190, sizeY / 2 + 240, 350, 40, "Next page", new Runnable()
+	Button next = new Button(sizeX / 2 + 190, sizeY / 2 + 240, 350, 40, "Next page", () ->
 	{
-		@Override
-		public void run()
-		{
-			page++;
-			updateScreen();
-		}
+		page++;
+		updateScreen();
 	}
-			);
+	);
 
-	Button previous = new Button(sizeX / 2 - 190, sizeY / 2 + 240, 350, 40, "Previous page", new Runnable()
+	Button previous = new Button(sizeX / 2 - 190, sizeY / 2 + 240, 350, 40, "Previous page", () ->
 	{
-		@Override
-		public void run()
-		{
-			page--;
-			updateScreen();
-		}
+		page--;
+		updateScreen();
 	}
-			);
+	);
 
-	ArrayList<Button> levelButtons = new ArrayList<Button>();
+	ArrayList<Button> levelButtons = new ArrayList<>();
 
 	public ScreenBrowseLevels(TanksOnlineServerHandler p, String title, ArrayList<UploadedLevel> levelsArray)
 	{
@@ -60,7 +48,7 @@ public class ScreenBrowseLevels extends ScreenLayout
 
 		this.title = title;
 
-		this.music = "tomato_feast_3.ogg";
+		this.music = "menu_3.ogg";
 		this.musicID = "menu";
 
 		this.texts.add(new ScreenOnline.Text(title, sizeX / 2, sizeY / 2 - 210, 24, 0));
@@ -72,21 +60,17 @@ public class ScreenBrowseLevels extends ScreenLayout
 
 		this.buttons.add(quit);
 
-		ArrayList<UploadedLevel> levels = new ArrayList<UploadedLevel>(levelsArray);
+		ArrayList<UploadedLevel> levels = new ArrayList<>(levelsArray);
 
 		synchronized (PlayerMap.instance)
 		{
 			for (UploadedLevel l : levels)
 			{
-				Button b = new Button(0, 0, 350, 40, l.name.replace("_", " "), new Runnable()
+				Button b = new Button(0, 0, 350, 40, l.name.replace("_", " "), () ->
 				{
-					@Override
-					public void run()
-					{
-						ScreenDownloadLevel s = new ScreenDownloadLevel(player, l);
-						s.setScreen();
+					ScreenDownloadLevel s = new ScreenDownloadLevel(player, l);
+					s.setScreen();
 
-					}
 				}
 						, "Uploaded by: " + PlayerMap.instance.getUsername(l.creator) + "---" + Game.timeInterval(l.time, System.currentTimeMillis()) + " ago");
 

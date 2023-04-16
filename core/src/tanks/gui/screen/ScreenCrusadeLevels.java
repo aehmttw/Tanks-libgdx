@@ -85,6 +85,7 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
         Game.cleanUp();
 
         l.level = new Level(l.levelString);
+        l.level.tilesRandomSeed = (int) (Math.random() * 1000);
         l.level.customTanks = l.tanks;
 
         if (!l.isTransition)
@@ -127,7 +128,9 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
                 }
             }
 
+        this.drawBgRect = false;
         this.drawDefaultBackground();
+        this.drawBgRect = true;
 
         if (Game.enable3d && Game.game.window.shapeRenderer.supportsBatching)
         {
@@ -142,6 +145,8 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
         }
 
         Drawing.drawing.stageRenderers();
+
+        Drawing.drawing.setRenderer(Drawing.drawing.defaultRenderer);
 
         Game.movables = movables;
         Game.obstacles = obstacles;
@@ -204,7 +209,7 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
 
         Game.game.window.loadPerspective();
 
-        if (Game.game.window.drawingShadow)
+        if (Game.game.window.drawingShadow || !Game.shadowsEnabled)
             this.age += Panel.frameFrequency;
 
         ArrayList<Movable> movables = Game.movables;

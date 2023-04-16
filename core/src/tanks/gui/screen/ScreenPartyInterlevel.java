@@ -15,7 +15,7 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
     ArrayList<Firework> fireworks1 = new ArrayList<>();
     ArrayList<Firework> fireworks2 = new ArrayList<>();
 
-    Button newLevel = new Button(this.centerX, this.centerY - this.objYSpace, this.objWidth, this.objHeight, "Generate a new level", () ->
+    Button newLevel = new Button(this.centerX, this.centerY - this.objYSpace, this.objWidth, this.objHeight, "Generate new level", () ->
     {
         if (ScreenGame.versus)
         {
@@ -32,7 +32,7 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
     }
     );
 
-    Button replay = new Button(this.centerX, this.centerY, this.objWidth, this.objHeight, "Replay the level", () ->
+    Button replay = new Button(this.centerX, this.centerY, this.objWidth, this.objHeight, "Replay level", () ->
     {
         Level level = new Level(Game.currentLevelString);
         level.loadLevel();
@@ -46,11 +46,11 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
         Game.screen = ScreenPartyHost.activeScreen;
         ScreenGame.versus = false;
         ScreenInterlevel.fromSavedLevels = false;
-        ScreenInterlevel.fromModdedLevels = false;
+        ScreenInterlevel.fromMinigames = false;
     }
     );
 
-    Button replayHigherPos = new Button(this.centerX, this.centerY - this.objYSpace / 2, this.objWidth, this.objHeight, "Replay the level", () ->
+    Button replayHigherPos = new Button(this.centerX, this.centerY - this.objYSpace / 2, this.objWidth, this.objHeight, "Replay level", () ->
     {
         Level level = new Level(Game.currentLevelString);
         level.loadLevel();
@@ -58,13 +58,29 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
     }
     );
 
+    Button replayMinigame = new Button(this.centerX, this.centerY - this.objYSpace / 2, this.objWidth, this.objHeight, "Play again", () ->
+    {
+        ScreenInterlevel.fromMinigames = false;
+        try
+        {
+            assert Game.currentLevel != null;
+            Game.currentLevel = Game.currentLevel.getClass().getConstructor().newInstance();
+            Game.currentLevel.loadLevel();
+
+        }
+        catch (Exception e)
+        {
+            Game.exitToCrash(e.getCause());
+        }
+    });
+
     Button quitHigherPos = new Button(this.centerX, this.centerY + this.objYSpace / 2, this.objWidth, this.objHeight, "Back to party", () ->
     {
         Game.resetTiles();
         Game.screen = ScreenPartyHost.activeScreen;
         ScreenGame.versus = false;
         ScreenInterlevel.fromSavedLevels = false;
-        ScreenInterlevel.fromModdedLevels = false;
+        ScreenInterlevel.fromMinigames = false;
     }
     );
 
@@ -136,10 +152,15 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
         {
             next.update();
         }
-        else if (ScreenInterlevel.fromSavedLevels || ScreenInterlevel.fromModdedLevels)
+        else if (ScreenInterlevel.fromSavedLevels)
         {
             quitHigherPos.update();
             replayHigherPos.update();
+        }
+        else if (ScreenInterlevel.fromMinigames)
+        {
+            replayMinigame.update();
+            quitHigherPos.update();
         }
         else
         {
@@ -148,7 +169,8 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
             newLevel.update();
         }
 
-        save.update();
+        if (!ScreenInterlevel.fromMinigames)
+            save.update();
     }
 
     @Override
@@ -195,10 +217,15 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
         {
             next.draw();
         }
-        else if (ScreenInterlevel.fromSavedLevels || ScreenInterlevel.fromModdedLevels)
+        else if (ScreenInterlevel.fromSavedLevels)
         {
             quitHigherPos.draw();
             replayHigherPos.draw();
+        }
+        else if (ScreenInterlevel.fromMinigames)
+        {
+            quitHigherPos.draw();
+            replayMinigame.draw();
         }
         else
         {
@@ -218,7 +245,8 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
         Drawing.drawing.setInterfaceFontSize(this.titleSize);
         Drawing.drawing.displayInterfaceText(this.centerX, this.centerY - this.objYSpace * 2.5, Panel.winlose);
 
-        save.draw();
+        if (!ScreenInterlevel.fromMinigames)
+           save.draw();
     }
 
     public ArrayList<Firework> getFireworkArray()

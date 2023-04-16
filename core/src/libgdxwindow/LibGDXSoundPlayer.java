@@ -242,6 +242,18 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
     }
 
     @Override
+    public void setMusicVolume(float volume)
+    {
+
+    }
+
+    @Override
+    public void setMusicSpeed(float speed)
+    {
+
+    }
+
+    @Override
     public void addSyncedMusic(String path, float volume, boolean looped, long fadeTime)
     {
 

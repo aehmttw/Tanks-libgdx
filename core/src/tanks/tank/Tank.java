@@ -4,9 +4,9 @@ import basewindow.Model;
 import basewindow.ModelPart;
 import tanks.*;
 import tanks.bullet.Bullet;
-import tanks.event.EventTankAddAttributeModifier;
-import tanks.event.EventTankUpdate;
-import tanks.event.EventTankUpdateHealth;
+import tanks.network.event.EventTankAddAttributeModifier;
+import tanks.network.event.EventTankUpdate;
+import tanks.network.event.EventTankUpdateHealth;
 import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.gui.screen.ScreenPartyLobby;
@@ -20,6 +20,7 @@ import static tanks.tank.TankProperty.Category.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 
 public abstract class Tank extends Movable implements ISolidObject
 {
@@ -47,6 +48,7 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public boolean invulnerable = false;
 	public boolean targetable = true;
+	public double invulnerabilityTimer = 0;
 
 	public boolean disabled = false;
 	public boolean inControlOfMotion = true;
@@ -77,7 +79,7 @@ public abstract class Tank extends Movable implements ISolidObject
 	@TankProperty(category = general, id = "resist_freezing", name = "Freezing immunity")
 	public boolean resistFreeze = false;
 
-	public int networkID;
+	public int networkID = -1;
 	public int crusadeID = -1;
 
 	@TankProperty(category = general, id = "description", name = "Tank description", miscType = TankProperty.MiscType.description)
@@ -157,6 +159,8 @@ public abstract class Tank extends Movable implements ISolidObject
 	@TankProperty(category = mines, id = "mine", name = "Mine")
 	public ItemMine mine = (ItemMine) TankPlayer.default_mine.clone();
 
+	/** Age in frames*/
+	protected double age = 0;
 
 	public double drawAge = 0;
 	public double destroyTimer = 0;
@@ -187,7 +191,7 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	/** Used for custom tanks, see /music/tank for built-in tanks */
 	@TankProperty(category = general, id = "music", name = "Music tracks", miscType = TankProperty.MiscType.music)
-	public ArrayList<String> musicTracks = new ArrayList<>();
+	public HashSet<String> musicTracks = new HashSet<>();
 
 	public boolean[][] hiddenPoints = new boolean[3][3];
 	public boolean hidden = false;
@@ -212,7 +216,7 @@ public abstract class Tank extends Movable implements ISolidObject
 	public long lastFarthestInSightUpdate = 0;
 	public Tank lastFarthestInSight = null;
 
-	public Tank(String name, double x, double y, double size, double r, double g, double b, boolean countID) 
+	public Tank(String name, double x, double y, double size, double r, double g, double b)
 	{
 		super(x, y);
 		this.size = size;
@@ -225,31 +229,45 @@ public abstract class Tank extends Movable implements ISolidObject
 
 		this.drawLevel = 4;
 
-		if (countID && ScreenPartyHost.isServer)
-			this.registerNetworkID();
-		else
-			this.networkID = -1;
-
 		this.bullet.unlimitedStack = true;
 		this.mine.unlimitedStack = true;
 	}
 
-	public void registerNetworkID()
+	public void unregisterNetworkID()
+	{
+		if (idMap.get(this.networkID) == this)
+			idMap.remove(this.networkID);
+
+		if (!freeIDs.contains(this.networkID))
+		{
+			freeIDs.add(this.networkID);
+		}
+	}
+
+	public static int nextFreeNetworkID()
 	{
 		if (freeIDs.size() > 0)
-			this.networkID = freeIDs.remove(0);
+			return freeIDs.remove(0);
 		else
 		{
-			this.networkID = currentID;
 			currentID++;
+			return currentID - 1;
 		}
+	}
 
+	public void registerNetworkID()
+	{
+		if (ScreenPartyLobby.isClient)
+			Game.exitToCrash(new RuntimeException("Do not automatically assign network IDs on client!"));
+
+		this.networkID = nextFreeNetworkID();
 		idMap.put(this.networkID, this);
 	}
 
-	public Tank(String name, double x, double y, double size, double r, double g, double b) 
+	public void setNetworkID(int id)
 	{
-		this(name, x, y, size, r, g, b, true);
+		this.networkID = id;
+		idMap.put(id, this);
 	}
 
 	public void fireBullet(Bullet b, double speed, double offset)
@@ -416,6 +434,15 @@ public abstract class Tank extends Movable implements ISolidObject
 	@Override
 	public void update()
 	{
+		if (this.networkID < 0)
+		{
+			// If you get this crash, please make sure you call Game.addTank() to add them to movables, or use registerNetworkID()!
+			Game.exitToCrash(new RuntimeException("Network ID not assigned to tank!"));
+		}
+
+		this.age += Panel.frameFrequency;
+		this.invulnerabilityTimer = Math.max(0, this.invulnerabilityTimer - Panel.frameFrequency);
+
 		this.treadAnimation += Math.sqrt(this.lastFinalVX * this.lastFinalVX + this.lastFinalVY * this.lastFinalVY) * Panel.frameFrequency;
 
 		if (this.enableTracks && this.treadAnimation > this.size * this.trackSpacing && !this.destroy)
@@ -435,18 +462,15 @@ public abstract class Tank extends Movable implements ISolidObject
 
 		if (destroy)
 		{
+			if (this.destroyTimer <= 0)
+			{
+				Game.eventsOut.add(new EventTankUpdateHealth(this));
+				this.unregisterNetworkID();
+			}
+
 			if (this.destroyTimer <= 0 && this.health <= 0)
 			{
 				Drawing.drawing.playSound("destroy.ogg", (float) (Game.tile_size / this.size));
-
-				if (!freeIDs.contains(this.networkID))
-				{
-					if (!this.isRemote)
-						Game.eventsOut.add(new EventTankUpdateHealth(this));
-
-					freeIDs.add(this.networkID);
-					idMap.remove(this.networkID);
-				}
 
 				this.onDestroy();
 
@@ -500,17 +524,19 @@ public abstract class Tank extends Movable implements ISolidObject
 					i--;
 				}
 			}
-			else if (a.type.equals("acceleration"))
-				this.accelerationModifier = a.getValue(this.accelerationModifier);
-			else if (a.type.equals("friction"))
-				this.frictionModifier = a.getValue(this.frictionModifier);
-			else if (a.type.equals("max_speed"))
-				this.maxSpeedModifier = a.getValue(this.maxSpeedModifier);
-			else if (a.name.equals("boost_effect"))
-				boost = a.getValue(boost);
 		}
 
-		if (Math.random() * Panel.frameFrequency < boost * Game.effectMultiplier && Game.effectsEnabled)
+
+		this.accelerationModifier = this.getAttributeValue(AttributeModifier.acceleration, this.accelerationModifier);
+
+		if (!(this instanceof TankAIControlled))
+			this.frictionModifier = this.getAttributeValue(AttributeModifier.friction, this.frictionModifier);
+
+		this.maxSpeedModifier = this.getAttributeValue(AttributeModifier.max_speed, this.maxSpeedModifier);
+
+		boost = this.getAttributeValue(AttributeModifier.ember_effect, boost);
+
+		if (Math.random() * Panel.frameFrequency < boost * Game.effectMultiplier && Game.effectsEnabled && !ScreenGame.finishedQuick)
 		{
 			Effect e = Effect.createNewEffect(this.posX, this.posY, Game.tile_size / 2, Effect.EffectType.piece);
 			double var = 50;
@@ -629,8 +655,8 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public void drawTank(boolean forInterface, boolean interface3d)
 	{
-		double luminance = this.luminance;
-		double glow = 1;
+		double luminance = this.getAttributeValue(AttributeModifier.glow, this.luminance);
+		double glow = this.getAttributeValue(AttributeModifier.glow, 1);
 
 		double s = (this.size * (Game.tile_size - destroyTimer) / Game.tile_size) * Math.min(this.drawAge / Game.tile_size, 1);
 		double sizeMod = 1;
@@ -640,16 +666,6 @@ public abstract class Tank extends Movable implements ISolidObject
 
 		Drawing drawing = Drawing.drawing;
 		double[] teamColor = Team.getObjectColor(this.secondaryColorR, this.secondaryColorG, this.secondaryColorB, this);
-
-		for (int i = 0; i < this.attributes.size(); i++)
-		{
-			AttributeModifier a = this.attributes.get(i);
-			if (a.type.equals("glow"))
-			{
-				luminance = a.getValue(luminance);
-				glow = a.getValue(glow);
-			}
-		}
 
 		Drawing.drawing.setColor(teamColor[0] * glow * this.glowIntensity, teamColor[1] * glow * this.glowIntensity, teamColor[2] * glow * this.glowIntensity, 255, 1);
 
@@ -789,11 +805,13 @@ public abstract class Tank extends Movable implements ISolidObject
 			}
 		}
 
-		/*
-		Drawing.drawing.setColor(0, 0, 0);
-		Drawing.drawing.setFontSize(30);
-		Drawing.drawing.drawText(this.posX, this.posY, 50, this.networkID + "");
-		*/
+		if (Game.showTankIDs)
+		{
+			Drawing.drawing.setColor(0, 0, 0);
+			Drawing.drawing.setFontSize(30);
+			Drawing.drawing.drawText(this.posX, this.posY, 50, this.networkID + "");
+		}
+
 
 		Drawing.drawing.setColor(this.secondaryColorR, this.secondaryColorG, this.secondaryColorB);
 	}
@@ -882,7 +900,7 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public void onDestroy()
 	{
-		if (this.explodeOnDestroy)
+		if (this.explodeOnDestroy && this.age >= 250)
 		{
 			Explosion e = new Explosion(this.posX, this.posY, Mine.mine_radius, 2, true, this);
 			e.explode();
@@ -937,7 +955,7 @@ public abstract class Tank extends Movable implements ISolidObject
 		{
 			for (int i = 0; i < this.attributes.size(); i++)
 			{
-				if (this.attributes.get(i).type.equals("healray"))
+				if (this.attributes.get(i).type.name.equals("healray"))
 				{
 					this.attributes.remove(i);
 					i--;
@@ -1011,7 +1029,7 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public double getDamageMultiplier(IGameObject source)
 	{
-		if (this.invulnerable || (source instanceof Bullet && this.resistBullets) || (source instanceof Explosion && this.resistExplosions))
+		if ((this.invulnerable || this.invulnerabilityTimer > 0) || (source instanceof Bullet && this.resistBullets) || (source instanceof Explosion && this.resistExplosions))
 			return 0;
 
 		return 1;
@@ -1128,5 +1146,56 @@ public abstract class Tank extends Movable implements ISolidObject
 		}
 
 		return p;
+	}
+
+	public void drawSpinny(double s)
+	{
+		double fade = Math.max(0, Math.sin(Math.min(s, 50) / 100 * Math.PI));
+
+		double frac = (System.currentTimeMillis() % 2000) / 2000.0;
+		double size = Math.max(800 * (0.5 - frac), 0) * fade;
+		Drawing.drawing.setColor(this.colorR, this.colorG, this.colorB, 64 * Math.sin(Math.min(frac * Math.PI, Math.PI / 2)) * fade);
+
+		if (Game.enable3d)
+			Drawing.drawing.fillOval(this.posX, this.posY, this.size / 2, size, size, false, false);
+		else
+			Drawing.drawing.fillOval(this.posX, this.posY, size, size);
+
+		double frac2 = ((250 + System.currentTimeMillis()) % 2000) / 2000.0;
+		double size2 = Math.max(800 * (0.5 - frac2), 0) * fade;
+
+		Drawing.drawing.setColor(this.secondaryColorR, this.secondaryColorG, this.secondaryColorB, 64 * Math.sin(Math.min(frac2 * Math.PI, Math.PI / 2)) * fade);
+
+		if (Game.enable3d)
+			Drawing.drawing.fillOval(this.posX, this.posY, this.size / 2, size2, size2, false, false);
+		else
+			Drawing.drawing.fillOval(this.posX, this.posY, size2, size2);
+
+		Drawing.drawing.setColor(this.colorR, this.colorG, this.colorB);
+		this.drawSpinny(this.posX, this.posY, this.size / 2, 200, 4, 0.3, 75 * fade, 0.5 * fade, false);
+		Drawing.drawing.setColor(this.secondaryColorR, this.secondaryColorG, this.secondaryColorB);
+		this.drawSpinny(this.posX, this.posY, this.size / 2, 198, 3, 0.5, 60 * fade, 0.375 * fade, false);
+	}
+
+	public void drawSpinny(double x, double y, double z, int max, int parts, double speed, double size, double dotSize, boolean invert)
+	{
+		for (int i = 0; i < max; i++)
+		{
+			double frac = (System.currentTimeMillis() / 1000.0 * speed + i * 1.0 / max) % 1;
+			double s = Math.max(Math.abs((i % (max * 1.0 / parts)) / 10.0 * parts), 0);
+
+			if (invert)
+			{
+				frac = -frac;
+			}
+
+			double v = size * Math.cos(frac * Math.PI * 2);
+			double v1 = size * Math.sin(frac * Math.PI * 2);
+
+			if (Game.enable3d)
+				Drawing.drawing.fillOval(x + v, y + v1, z, s * dotSize, s * dotSize, false, false);
+			else
+				Drawing.drawing.fillOval(x + v, y + v1, s * dotSize, s * dotSize);
+		}
 	}
 }

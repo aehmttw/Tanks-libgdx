@@ -4,9 +4,8 @@ import tanks.Game;
 import tanks.Movable;
 import tanks.Panel;
 import tanks.bullet.Bullet;
-import tanks.event.EventLayMine;
-import tanks.event.EventObstacleDestroy;
-import tanks.gui.Button;
+import tanks.network.event.EventLayMine;
+import tanks.network.event.EventObstacleDestroy;
 import tanks.gui.screen.ScreenPartyLobby;
 import tanks.hotbar.item.Item;
 import tanks.tank.*;
@@ -107,7 +106,7 @@ public class ObstacleExplosive extends Obstacle implements IAvoidObject
         e.explode();
 
         Game.removeObstacles.add(this);
-        Game.eventsOut.add(new EventObstacleDestroy(this.posX, this.posY));
+        Game.eventsOut.add(new EventObstacleDestroy(this.posX, this.posY, this.name));
     }
 
     @Override

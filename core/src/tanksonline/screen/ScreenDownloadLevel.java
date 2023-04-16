@@ -1,10 +1,10 @@
 package tanksonline.screen;
 
 import tanks.Game;
-import tanks.event.online.*;
 import tanks.gui.Button;
 import tanks.gui.TextBox;
 import tanks.gui.screen.ScreenOnline;
+import tanks.network.event.online.*;
 import tanksonline.TanksOnlineServerHandler;
 import tanksonline.UploadedLevel;
 
@@ -45,7 +45,7 @@ public class ScreenDownloadLevel extends ScreenLayout
         super(player);
         this.screen = player.screen;
 
-        this.music = "tomato_feast_4.ogg";
+        this.music = "menu_4.ogg";
         this.musicID = "menu";
 
         quit.wait = true;

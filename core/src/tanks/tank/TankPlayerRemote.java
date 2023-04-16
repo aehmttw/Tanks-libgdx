@@ -2,7 +2,7 @@ package tanks.tank;
 
 import tanks.*;
 import tanks.bullet.Bullet;
-import tanks.event.*;
+import tanks.network.event.*;
 import tanks.gui.IFixedMenu;
 import tanks.gui.Scoreboard;
 import tanks.gui.screen.ScreenGame;
@@ -12,8 +12,6 @@ import tanks.hotbar.item.Item;
 import tanks.hotbar.item.ItemBullet;
 import tanks.hotbar.item.ItemEmpty;
 import tanks.hotbar.item.ItemMine;
-
-import java.util.ArrayList;
 
 public class TankPlayerRemote extends Tank implements IServerPlayerTank
 {
@@ -31,7 +29,7 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
     public long startUpdateTime = -1;
     public double ourTimeOffset = 0;
 
-    public boolean forceMotion = false;
+    public boolean forceMotion = true;
     public boolean recoil = false;
 
     public Player player;
@@ -78,8 +76,10 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
     {
         super.update();
 
-        this.bullet.updateCooldown();
-        this.mine.updateCooldown();
+        double reload = this.getAttributeValue(AttributeModifier.reload, 1);
+
+        this.bullet.updateCooldown(reload);
+        this.mine.updateCooldown(reload);
 
         Hotbar h = this.player.hotbar;
         if (h.enabledItemBar)
@@ -88,7 +88,7 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
             {
                 if (i != null && !(i instanceof ItemEmpty))
                 {
-                    i.updateCooldown();
+                    i.updateCooldown(reload);
                 }
             }
         }
@@ -210,17 +210,8 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
                     vY *= maxSpeed / speed;
                 }
 
-                double vX2 = vX * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
-                double vY2 = vY * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
-
-                for (AttributeModifier a : this.attributes)
-                {
-                    if (a.type.equals("velocity"))
-                    {
-                        vX2 = a.getValue(vX2);
-                        vY2 = a.getValue(vY2);
-                    }
-                }
+                double vX2 = this.getAttributeValue(AttributeModifier.velocity, vX * ScreenGame.finishTimer / ScreenGame.finishTimerMax);
+                double vY2 = this.getAttributeValue(AttributeModifier.velocity, vY * ScreenGame.finishTimer / ScreenGame.finishTimerMax);
 
                 double maxDist = 1;
 
@@ -392,7 +383,7 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
 
         double vX = this.vX;
         double vY = this.vY;
-        this.addPolarMotion(b.getPolarDirection() + Math.PI, 25.0 / 32.0 * b.recoil * b.frameDamageMultipler);
+        this.addPolarMotion(b.getPolarDirection() + Math.PI, 25.0 / 32.0 * b.recoil * this.getAttributeValue(AttributeModifier.recoil, 1) * b.frameDamageMultipler);
 
         if (b.moveOut)
             b.moveOut(50 / speed * this.size / Game.tile_size);
@@ -402,8 +393,8 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
         Game.eventsOut.add(new EventShootBullet(b));
         Game.movables.add(b);
 
-        if (b.recoil != 0)
-            this.forceMotion = true;
+//        if (b.recoil != 0)
+//            this.forceMotion = true;
 
         if (!this.hasCollided)
             this.recoil = true;

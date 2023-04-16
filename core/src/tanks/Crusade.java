@@ -1,7 +1,8 @@
 package tanks;
 import basewindow.BaseFile;
-import tanks.event.*;
-import tanks.gui.screen.ScreenCrusadeLevels;
+import tanks.hotbar.item.ItemBullet;
+import tanks.hotbar.item.ItemMine;
+import tanks.network.event.*;
 import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.hotbar.ItemBar;
@@ -73,6 +74,8 @@ public class Crusade
 	public ArrayList<LevelPerformance> performances = new ArrayList<>();
 
 	public boolean respawnTanks = true;
+
+	public String description = null;
 
 	public Crusade(ArrayList<String> levelArray, String name, String file)
 	{
@@ -247,6 +250,17 @@ public class Crusade
 		Game.player.hotbar.enabledItemBar = true;
 		Game.player.hotbar.enabledCoins = true;
 
+		int playersTotal = 0;
+		int livesTotal = 0;
+		for (Player player : Game.players)
+		{
+			if (crusadePlayers.get(player) != null)
+			{
+				livesTotal += player.remainingLives;
+				playersTotal++;
+			}
+		}
+
 		for (Player player : Game.players)
 		{
 			if (crusadePlayers.get(player) == null)
@@ -273,7 +287,11 @@ public class Crusade
 				}
 
 				if (!found)
+				{
 					crusadePlayers.put(player, new CrusadePlayer(player));
+					if (playersTotal > 0)
+						player.remainingLives = livesTotal / playersTotal;
+				}
 			}
 
 			if (player.remainingLives > 0)
@@ -303,6 +321,19 @@ public class Crusade
 					Game.eventsOut.add(new EventSetItem(player, in, player.hotbar.itemBar.slots[in]));
 
 				Game.eventsOut.add(new EventLoadItemBarSlot(player.clientID, player.hotbar.itemBar.selected));
+			}
+
+			if (player.hotbar.enabledItemBar)
+			{
+				for (Item item: player.hotbar.itemBar.slots)
+				{
+					item.cooldown = 0;
+
+					if (item instanceof ItemBullet)
+						((ItemBullet) item).liveBullets = 0;
+					else if (item instanceof ItemMine)
+						((ItemMine) item).liveMines = 0;
+				}
 			}
 		}
 

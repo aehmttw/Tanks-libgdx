@@ -5,8 +5,9 @@ import basewindow.InputPoint;
 import tanks.*;
 import tanks.bullet.Bullet;
 import tanks.bullet.BulletElectric;
-import tanks.event.EventLayMine;
-import tanks.event.EventShootBullet;
+import tanks.gui.screen.ScreenTitle;
+import tanks.network.event.EventLayMine;
+import tanks.network.event.EventShootBullet;
 import tanks.gui.Button;
 import tanks.gui.IFixedMenu;
 import tanks.gui.Joystick;
@@ -16,9 +17,9 @@ import tanks.hotbar.Hotbar;
 import tanks.hotbar.item.*;
 
 /**
- * A tank that is controlled by the player.
+ * A tank that is controlled by the player. TankPlayerController is used instead if we are connected to a party as a client.
  */
-public class TankPlayer extends Tank implements IPlayerTank, IServerPlayerTank
+public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerTank
 {
 	public static ItemBullet default_bullet;
 	public static ItemMine default_mine;
@@ -31,7 +32,7 @@ public class TankPlayer extends Tank implements IPlayerTank, IServerPlayerTank
 	public static boolean controlStickMobile = true;
 
 	public Player player = Game.player;
-	public boolean enableDestroyCheat = false;
+	public static boolean enableDestroyCheat = false;
 
 	public boolean drawTouchCircle = false;
 	public double touchCircleSize = 400;
@@ -57,6 +58,13 @@ public class TankPlayer extends Tank implements IPlayerTank, IServerPlayerTank
 		this.orientation = angle;
 		this.player.tank = this;
 
+		this.colorR = Game.player.colorR;
+		this.colorG = Game.player.colorG;
+		this.colorB = Game.player.colorB;
+		this.secondaryColorR = Game.player.turretColorR;
+		this.secondaryColorG = Game.player.turretColorG;
+		this.secondaryColorB = Game.player.turretColorB;
+
 		if (enableDestroyCheat)
 		{
 			this.showName = true;
@@ -66,6 +74,22 @@ public class TankPlayer extends Tank implements IPlayerTank, IServerPlayerTank
 
 			this.nameTag.name = "Destroy cheat enabled!!!";
 		}
+
+		if (Game.invulnerable)
+		{
+			this.resistExplosions = true;
+			this.resistBullets = true;
+		}
+	}
+
+	public void setDefaultColor()
+	{
+		this.colorR = 0;
+		this.colorG = 150;
+		this.colorB = 255;
+		this.secondaryColorR = Turret.calculateSecondaryColor(this.colorR);
+		this.secondaryColorG = Turret.calculateSecondaryColor(this.colorG);
+		this.secondaryColorB = Turret.calculateSecondaryColor(this.colorB);
 	}
 
 	@Override
@@ -192,8 +216,10 @@ public class TankPlayer extends Tank implements IPlayerTank, IServerPlayerTank
 				this.setPolarMotion(this.getPolarDirection(), maxVelocity);
 		}
 
-		this.bullet.updateCooldown();
-		this.mine.updateCooldown();
+		double reload = this.getAttributeValue(AttributeModifier.reload, 1);
+
+		this.bullet.updateCooldown(reload);
+		this.mine.updateCooldown(reload);
 
 		Hotbar h = Game.player.hotbar;
 		if (h.enabledItemBar)
@@ -202,7 +228,7 @@ public class TankPlayer extends Tank implements IPlayerTank, IServerPlayerTank
 			{
 				if (i != null && !(i instanceof ItemEmpty))
 				{
-					i.updateCooldown();
+					i.updateCooldown(reload);
 				}
 			}
 		}
@@ -329,7 +355,7 @@ public class TankPlayer extends Tank implements IPlayerTank, IServerPlayerTank
 		if (mine && this.getItem(true).cooldown <= 0 && !this.disabled)
 			this.layMine();
 
-		if ((trace || lockTrace) && !Game.bulletLocked && !this.disabled && Game.screen instanceof ScreenGame)
+		if ((trace || lockTrace) && !Game.bulletLocked && !this.disabled && (Game.screen instanceof ScreenGame || Game.screen instanceof ScreenTitle))
 		{
 			double range = -1;
 
@@ -424,12 +450,12 @@ public class TankPlayer extends Tank implements IPlayerTank, IServerPlayerTank
 
 		if (b.itemSound != null)
 		{
-			Drawing.drawing.playGlobalSound(b.itemSound, (float) ((Bullet.bullet_size / this.bullet.size) * (1 - (Math.random() * 0.5) * b.pitchVariation)));
+			Drawing.drawing.playGlobalSound(b.itemSound, (float) ((Bullet.bullet_size / b.size) * (1 - (Math.random() * 0.5) * b.pitchVariation)));
 		}
 
 		b.setPolarMotion(this.angle + offset, speed);
 		b.speed = speed;
-		this.addPolarMotion(b.getPolarDirection() + Math.PI, 25.0 / 32.0 * b.recoil * b.frameDamageMultipler);
+		this.addPolarMotion(b.getPolarDirection() + Math.PI, 25.0 / 32.0 * b.recoil * this.getAttributeValue(AttributeModifier.recoil, 1) * b.frameDamageMultipler);
 
 		if (b.moveOut)
 			b.moveOut(50 / speed * this.size / Game.tile_size);

@@ -1,11 +1,13 @@
 package tanks;
 
-import tanks.event.*;
 import tanks.gui.screen.*;
 import tanks.gui.screen.leveleditor.ScreenLevelEditor;
 import tanks.gui.screen.leveleditor.ScreenLevelEditorOverlay;
 import tanks.hotbar.item.Item;
+import tanks.hotbar.item.ItemBullet;
+import tanks.hotbar.item.ItemMine;
 import tanks.obstacle.Obstacle;
+import tanks.network.event.*;
 import tanks.tank.*;
 
 import java.util.ArrayList;
@@ -58,6 +60,8 @@ public class Level
 	public int colorVarR = 20;
 	public int colorVarG = 20;
 	public int colorVarB = 20;
+
+	public int tilesRandomSeed = 0;
 
 	public double light = 1.0;
 	public double shadow = 0.5;
@@ -224,7 +228,7 @@ public class Level
 			customTanksMap.put(t.name, t);
 		}
 
-		ArrayList<EventCreatePlayer> playerEvents = new ArrayList<>();
+		ArrayList<EventTankPlayerCreate> playerEvents = new ArrayList<>();
 
 		Tank.currentID = 0;
 		Tank.freeIDs.clear();
@@ -475,9 +479,12 @@ public class Level
 
 				t.team = team;
 
+				// Don't do this in your code! We only want to dynamically generate tank IDs on level load!
+				t.networkID = Tank.nextFreeNetworkID();
+				Tank.idMap.put(t.networkID, t);
+
 				if (remote)
 				{
-					t.registerNetworkID();
 					TankRemote t1 = new TankRemote(t);
 					Game.movables.add(t1);
 				}
@@ -628,16 +635,13 @@ public class Level
 				Team team = this.playerSpawnsTeam.get(spawn);
 
 				if (ScreenPartyHost.isServer)
-				{
-					EventCreatePlayer e = new EventCreatePlayer(this.includedPlayers.get(i), x, y, angle, team);
-					playerEvents.add(e);
-					Game.eventsOut.add(e);
-				}
+					Game.addPlayerTank(this.includedPlayers.get(i), x, y, angle, team);
 				else if (!remote)
 				{
 					TankPlayer tank = new TankPlayer(x, y, angle);
 					Game.playerTank = tank;
 					tank.team = team;
+					tank.registerNetworkID();
 					Game.movables.add(tank);
 				}
 			}
@@ -658,14 +662,14 @@ public class Level
 				((ScreenLevelEditor) sc).movePlayer = (sc.getSpawns().size() <= 1);
 		}
 
-		for (EventCreatePlayer e: playerEvents)
+		for (EventTankPlayerCreate e: playerEvents)
 			e.execute();
 
 		if (Crusade.crusadeMode && Crusade.currentCrusade.retry)
 		{
 			for (Tank t: tanksToRemove)
 			{
-				INetworkEvent e = new EventRemoveTank(t);
+				INetworkEvent e = new EventTankRemove(t, false);
 				Game.removeMovables.add(t);
 				Game.eventsOut.add(e);
 			}
@@ -697,18 +701,20 @@ public class Level
 		Game.tilesG = new double[Game.currentSizeX][Game.currentSizeY];
 		Game.tilesB = new double[Game.currentSizeX][Game.currentSizeY];
 		Game.tilesDepth = new double[Game.currentSizeX][Game.currentSizeY];
+		Game.tilesFlash = new double[Game.currentSizeX][Game.currentSizeY];
 		Game.tileDrawables = new Obstacle[Game.currentSizeX][Game.currentSizeY];
 
+		Random tilesRandom = new Random(this.tilesRandomSeed);
 		for (int i = 0; i < Game.currentSizeX; i++)
 		{
 			for (int j = 0; j < Game.currentSizeY; j++)
 			{
 				if (Game.fancyTerrain)
 				{
-					Game.tilesR[i][j] = (colorR + Math.random() * colorVarR);
-					Game.tilesG[i][j] = (colorG + Math.random() * colorVarG);
-					Game.tilesB[i][j] = (colorB + Math.random() * colorVarB);
-					Game.tilesDepth[i][j] = Math.random() * 10;
+					Game.tilesR[i][j] = (colorR + tilesRandom.nextDouble() * colorVarR);
+					Game.tilesG[i][j] = (colorG + tilesRandom.nextDouble() * colorVarG);
+					Game.tilesB[i][j] = (colorB + tilesRandom.nextDouble() * colorVarB);
+					Game.tilesDepth[i][j] = tilesRandom.nextDouble() * 10;
 				}
 				else
 				{

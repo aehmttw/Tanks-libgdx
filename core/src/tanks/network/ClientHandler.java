@@ -10,11 +10,11 @@ import io.netty.util.ReferenceCountUtil;
 import tanks.Crusade;
 import tanks.Game;
 import tanks.Panel;
-import tanks.event.EventKick;
-import tanks.event.EventPing;
-import tanks.event.EventSendClientDetails;
-import tanks.event.INetworkEvent;
-import tanks.event.online.EventSendOnlineClientDetails;
+import tanks.network.event.EventKick;
+import tanks.network.event.EventPing;
+import tanks.network.event.EventSendClientDetails;
+import tanks.network.event.INetworkEvent;
+import tanks.network.event.online.EventSendOnlineClientDetails;
 import tanks.gui.screen.ScreenOverlayOnline;
 import tanks.gui.screen.ScreenPartyLobby;
 
@@ -125,6 +125,8 @@ public class ClientHandler extends ChannelInboundHandlerAdapter
 		
 		ByteBuf b2 = ctx.channel().alloc().buffer();
 		b2.writeInt(b.readableBytes());
+		MessageReader.upstreamBytes += b.readableBytes() + 4;
+		MessageReader.updateLastMessageTime();
 		b2.writeBytes(b);
 
 		if (flush)
@@ -174,12 +176,14 @@ public class ClientHandler extends ChannelInboundHandlerAdapter
     }
 	
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg)
-    {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws InterruptedException
+	{
 		this.ctx = ctx;
 		ByteBuf buffy = (ByteBuf) msg;
 		boolean reply = this.reader.queueMessage(buffy, null);
 		ReferenceCountUtil.release(msg);
+
+		//Thread.sleep(150);
 
 		if (reply)
 		{

@@ -2,7 +2,7 @@ package tanks.bullet;
 
 import tanks.*;
 import tanks.AttributeModifier.Operation;
-import tanks.event.EventTankUpdateHealth;
+import tanks.network.event.EventTankUpdateHealth;
 import tanks.hotbar.item.ItemBullet;
 import tanks.tank.Tank;
 
@@ -77,7 +77,7 @@ public class BulletHealing extends BulletInstant
 
 		Game.eventsOut.add(new EventTankUpdateHealth(t));
 
-		t.addAttribute(new AttributeModifier("healray", "healray", Operation.add, 1.0));
+		t.addAttribute(new AttributeModifier("healray", AttributeModifier.healray, Operation.add, 1.0));
 
 		if (t.health > 6 && (int) (before) != (int) (t.health))
 		{

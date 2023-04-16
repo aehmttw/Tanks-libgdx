@@ -8,14 +8,10 @@ import tanksonline.TanksOnlineServerHandler;
 
 public class ScreenWelcomeToTanksOnline extends ScreenLayout
 {
-    Button play = new Button(sizeX / 2, sizeY / 2 + 30, 350, 40, "Ok", new Runnable()
+    Button play = new Button(sizeX / 2, sizeY / 2 + 30, 350, 40, "Ok", () ->
     {
-        @Override
-        public void run()
-        {
-            ScreenHome s = new ScreenHome(player);
-            s.setScreen();
-        }
+        ScreenHome s = new ScreenHome(player);
+        s.setScreen();
     }
     );
 
@@ -24,7 +20,7 @@ public class ScreenWelcomeToTanksOnline extends ScreenLayout
         super(player);
         this.texts.add(new ScreenOnline.Text("Welcome to Tanks Online!", sizeX / 2, sizeY / 2 - 60, 24, 0));
 
-        this.music = "tomato_feast_3.ogg";
+        this.music = "menu_3.ogg";
         this.musicID = "menu";
 
         if (accessCode.expiration < 0)

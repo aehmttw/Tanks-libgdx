@@ -42,6 +42,7 @@ public class Tanks extends ApplicationAdapter
 		Game.framework = Game.Framework.libgdx;
 		Game.initScript();
 		Game.game.window = window;
+		Game.debug = true;
 	}
 
 	@Override

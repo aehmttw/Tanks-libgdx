@@ -18,6 +18,8 @@ public class ScreenOptions extends Screen
 	public static final String onText = "\u00A7000200000255on";
 	public static final String offText = "\u00A7200000000255off";
 
+	TankPlayer preview = new TankPlayer(0, 0, 0);
+
 	public ScreenOptions()
 	{
 		this.music = "menu_options.ogg";
@@ -35,40 +37,47 @@ public class ScreenOptions extends Screen
 	);
 
 
-	Button multiplayerOptions = new Button(this.centerX - this.objXSpace / 2, this.centerY + this.objYSpace, this.objWidth, this.objHeight, "Multiplayer options", () -> Game.screen = new ScreenOptionsMultiplayer()
-	);
+	Button multiplayerOptions = new Button(this.centerX - this.objXSpace / 2, this.centerY + this.objYSpace, this.objWidth, this.objHeight, "Multiplayer options", () -> Game.screen = new ScreenOptionsMultiplayer());
 
-	Button gameOptions = new Button(this.centerX + this.objXSpace / 2, this.centerY, this.objWidth, this.objHeight, "Game options", () -> Game.screen = new ScreenOptionsGame()
-	);
+	Button graphicsOptions = new Button(this.centerX - this.objXSpace / 2, this.centerY - this.objYSpace, this.objWidth, this.objHeight, "Graphics options", () -> Game.screen = new ScreenOptionsGraphics());
 
-	Button graphicsOptions = new Button(this.centerX - this.objXSpace / 2, this.centerY - this.objYSpace, this.objWidth, this.objHeight, "Graphics options", () -> Game.screen = new ScreenOptionsGraphics()
-	);
-
-	Button soundOptions = new Button(this.centerX + this.objXSpace / 2, this.centerY - this.objYSpace, this.objWidth, this.objHeight, "Sound options", () -> Game.screen = new ScreenOptionsSound()
-	);
+	Button soundOptions = new Button(this.centerX + this.objXSpace / 2, this.centerY - this.objYSpace, this.objWidth, this.objHeight, "Sound options", () -> Game.screen = new ScreenOptionsSound());
 
 	Button inputOptions = new Button(this.centerX - this.objXSpace / 2, this.centerY, this.objWidth, this.objHeight, "Input options", () ->
 	{
 		if (Game.game.window.touchscreen)
 			Game.screen = new ScreenOptionsInputTouchscreen();
 		else
-			Game.screen = new ScreenOptionsInputDesktop();
-	}
-	);
+			Game.screen = ScreenOverlayControls.lastControlsScreen;
+	});
 
-	Button interfaceOptions = new Button(this.centerX + this.objXSpace / 2, this.centerY + this.objYSpace, this.objWidth, this.objHeight, "Interface options", () -> Game.screen = new ScreenOptionsInterface()
-	);
+	Button personalize = new Button(this.centerX, this.centerY - this.objYSpace * 2.4, this.objWidth * 1.5, this.objHeight * 2, "", () -> Game.screen = new ScreenOptionsPersonalize());
+
+	Button interfaceOptions = new Button(this.centerX + this.objXSpace / 2, this.centerY + this.objYSpace * 0, this.objWidth, this.objHeight, "Window options", () -> Game.screen = new ScreenOptionsWindow());
+	Button interfaceOptionsMobile = new Button(this.centerX + this.objXSpace / 2, this.centerY + this.objYSpace * 0, this.objWidth, this.objHeight, "Interface options", () -> Game.screen = new ScreenOptionsWindowMobile());
+
+	Button speedrunOptions = new Button(this.centerX + this.objXSpace / 2, this.centerY + this.objYSpace, this.objWidth, this.objHeight, "Speedrunning options", () -> Game.screen = new ScreenOptionsSpeedrun());
+
+	Button miscOptions = new Button(this.centerX, this.centerY + this.objYSpace * 2, this.objWidth, this.objHeight, "Miscellaneous options", () -> Game.screen = new ScreenOptionsMisc());
 
 	@Override
 	public void update()
 	{
 		soundOptions.update();
-		gameOptions.update();
-		interfaceOptions.update();
+
+		if (Game.framework == Game.Framework.libgdx)
+			interfaceOptionsMobile.update();
+		else
+			interfaceOptions.update();
+
+		speedrunOptions.update();
 
 		graphicsOptions.update();
 		inputOptions.update();
 		multiplayerOptions.update();
+		personalize.update();
+
+		miscOptions.update();
 
 		back.update();
 	}
@@ -78,16 +87,53 @@ public class ScreenOptions extends Screen
 	{
 		this.drawDefaultBackground();
 		back.draw();
+		miscOptions.draw();
 		multiplayerOptions.draw();
 		inputOptions.draw();
 		graphicsOptions.draw();
-		interfaceOptions.draw();
-		gameOptions.draw();
+		speedrunOptions.draw();
+
+		if (Game.framework == Game.Framework.libgdx)
+			interfaceOptionsMobile.draw();
+		else
+			interfaceOptions.draw();
+
 		soundOptions.draw();
+		personalize.draw();
 
 		Drawing.drawing.setInterfaceFontSize(this.titleSize);
 		Drawing.drawing.setColor(0, 0, 0);
+
+		if (Game.game.window.fontRenderer.getStringSizeX(Drawing.drawing.fontSize, Game.player.username) / Drawing.drawing.interfaceScale > personalize.sizeX - 240)
+			Drawing.drawing.setInterfaceFontSize(this.titleSize * (personalize.sizeX - 240) / (Game.game.window.fontRenderer.getStringSizeX(Drawing.drawing.fontSize, Game.player.username) / Drawing.drawing.interfaceScale));
+
 		Drawing.drawing.displayInterfaceText(this.centerX, this.centerY - this.objYSpace * 3.5, "Options");
+
+		if (Game.player.colorR + Game.player.colorG + Game.player.colorB >= 380 && Game.player.username.length() >= 1)
+		{
+			Drawing.drawing.setColor(127, 127, 127);
+			double s = Game.game.window.fontRenderer.getStringSizeX(Drawing.drawing.fontSize, Game.player.username) / Drawing.drawing.interfaceScale;
+			Drawing.drawing.fillInterfaceRect(personalize.posX, personalize.posY + personalize.sizeY * 0.1, s, 40);
+			Drawing.drawing.fillInterfaceOval(personalize.posX - (s) / 2, personalize.posY + personalize.sizeY * 0.1, 40, 40);
+			Drawing.drawing.fillInterfaceOval(personalize.posX + (s) / 2, personalize.posY + personalize.sizeY * 0.1, 40, 40);
+		}
+
+		preview.drawForInterface(personalize.posX - personalize.sizeX / 2 + personalize.sizeY * 0.7, personalize.posY, 1);
+
+		Drawing.drawing.setColor(Game.player.turretColorR, Game.player.turretColorG, Game.player.turretColorB);
+		Drawing.drawing.drawInterfaceText(personalize.posX + 2, personalize.posY + personalize.sizeY * 0.1 + 2, Game.player.username);
+		Drawing.drawing.setColor(Game.player.colorR, Game.player.colorG, Game.player.colorB);
+		Drawing.drawing.drawInterfaceText(personalize.posX, personalize.posY + personalize.sizeY * 0.1, Game.player.username);
+
+		if (Game.player.username.length() < 1)
+		{
+			Drawing.drawing.setColor(127, 127, 127);
+			Drawing.drawing.displayInterfaceText(personalize.posX, personalize.posY + personalize.sizeY * 0.1, "Pick a username...");
+		}
+
+		Drawing.drawing.setInterfaceFontSize(this.titleSize * 0.65);
+		Drawing.drawing.setColor(80, 80, 80);
+		Drawing.drawing.displayInterfaceText(personalize.posX, personalize.posY - personalize.sizeY * 0.3, "My profile");
 	}
 
 	public static void initOptions(String homedir)
@@ -139,6 +185,7 @@ public class ScreenOptions extends Screen
 			f.println("preview_crusades=" + Game.previewCrusades);
 			f.println("tank_textures=" + Game.tankTextures);
 			f.println("mouse_target=" + Panel.showMouseTarget);
+			f.println("mouse_target_height=" + Panel.showMouseTargetHeight);
 			f.println("constrain_mouse=" + Game.constrainMouse);
 			f.println("fullscreen=" + fullscreen);
 			f.println("vibrations=" + Game.enableVibrations);
@@ -153,6 +200,7 @@ public class ScreenOptions extends Screen
 			f.println("full_stats=" + Game.fullStats);
 			f.println("timer=" + Game.showSpeedrunTimer);
 			f.println("deterministic=" + Game.deterministicMode);
+			f.println("deterministic_30fps=" + Game.deterministic30Fps);
 			f.println("warn_before_closing=" + Game.warnBeforeClosing);
 			f.println("info_bar=" + Drawing.drawing.enableStats);
 			f.println("port=" + Game.port);
@@ -252,6 +300,9 @@ public class ScreenOptions extends Screen
 					case "mouse_target":
 						Panel.showMouseTarget = Boolean.parseBoolean(optionLine[1]);
 						break;
+					case "mouse_target_height":
+						Panel.showMouseTargetHeight = Boolean.parseBoolean(optionLine[1]);
+						break;
 					case "constrain_mouse":
 						Game.constrainMouse = Boolean.parseBoolean(optionLine[1]);
 						break;
@@ -290,6 +341,9 @@ public class ScreenOptions extends Screen
 						break;
 					case "deterministic":
 						Game.deterministicMode = Boolean.parseBoolean(optionLine[1]);
+						break;
+					case "deterministic_30fps":
+						Game.deterministic30Fps = Boolean.parseBoolean(optionLine[1]);
 						break;
 					case "info_bar":
 						Drawing.drawing.showStats(Boolean.parseBoolean(optionLine[1]));

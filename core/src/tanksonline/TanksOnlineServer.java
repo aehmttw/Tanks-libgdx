@@ -8,16 +8,16 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import tanks.event.EventKick;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.network.SynchronizedList;
+import tanks.network.event.EventKick;
 
 public class TanksOnlineServer
 {
     public int port;
     public EventLoopGroup bossGroup;
     public EventLoopGroup workerGroup;
-    public SynchronizedList<TanksOnlineServerHandler> connections = new SynchronizedList<TanksOnlineServerHandler>();
+    public SynchronizedList<TanksOnlineServerHandler> connections = new SynchronizedList<>();
 
     public static TanksOnlineServer instance;
     public ChannelFuture channel;

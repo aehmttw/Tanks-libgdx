@@ -2,13 +2,10 @@ package tanksonline;
 
 import io.netty.buffer.ByteBuf;
 import tanks.Game;
-import tanks.event.*;
-import tanks.event.online.IOnlineServerEvent;
-import tanks.gui.screen.ScreenKicked;
-import tanks.gui.screen.ScreenPartyHost;
-import tanks.gui.screen.ScreenPartyLobby;
-import tanks.network.Client;
+import tanks.network.MessageReader;
 import tanks.network.NetworkEventMap;
+import tanks.network.event.*;
+import tanks.network.event.online.IOnlineServerEvent;
 
 import java.util.UUID;
 
@@ -37,7 +34,7 @@ public class TanksOnlineMessageReader
                 {
                     endpoint = queue.readInt();
 
-                    if (endpoint > 1048576)
+                    if (endpoint > MessageReader.max_event_size)
                     {
                         if (s != null)
                         {
@@ -61,7 +58,7 @@ public class TanksOnlineMessageReader
                     {
                         endpoint = queue.readInt();
 
-                        if (endpoint > 1048576)
+                        if (endpoint > MessageReader.max_event_size)
                         {
                             if (s != null)
                             {

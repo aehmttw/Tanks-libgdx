@@ -1,9 +1,10 @@
 package tanks;
 
-import basewindow.*;
+import basewindow.BaseFile;
+import basewindow.BaseFileManager;
+import basewindow.BaseWindow;
+import basewindow.ModelPart;
 import tanks.bullet.*;
-import tanks.event.*;
-import tanks.event.online.*;
 import tanks.extension.Extension;
 import tanks.extension.ExtensionRegistry;
 import tanks.generator.LevelGenerator;
@@ -17,17 +18,27 @@ import tanks.gui.screen.leveleditor.OverlayEditorMenu;
 import tanks.gui.screen.leveleditor.ScreenLevelEditor;
 import tanks.hotbar.Hotbar;
 import tanks.hotbar.ItemBar;
-import tanks.hotbar.item.*;
+import tanks.hotbar.item.Item;
+import tanks.hotbar.item.ItemBullet;
+import tanks.hotbar.item.ItemMine;
+import tanks.hotbar.item.ItemShield;
+import tanks.minigames.Arcade;
+import tanks.minigames.Minigame;
 import tanks.network.Client;
 import tanks.network.NetworkEventMap;
 import tanks.network.SteamNetworkHandler;
 import tanks.network.SynchronizedList;
+import tanks.network.event.*;
+import tanks.network.event.online.*;
 import tanks.obstacle.*;
 import tanks.registry.*;
 import tanks.tank.*;
 import tanks.translation.Translation;
 
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
 import java.util.*;
 
 public class Game
@@ -89,16 +100,18 @@ public class Game
 	public static double[][] tilesR = new double[28][18];
 	public static double[][] tilesG = new double[28][18];
 	public static double[][] tilesB = new double[28][18];
+	public static double[][] tilesFlash = new double[28][18];
 
 	public static Obstacle[][] tileDrawables = new Obstacle[28][18];
 
 	public static double[][] tilesDepth = new double[28][18];
 
 	//Remember to change the version in android's build.gradle and ios's robovm.properties
-	public static final String version = "Tanks v1.4.l";
-	public static final int network_protocol = 45;
+	public static final String version = "Tanks v1.5.0";
+	public static final int network_protocol = 50;
 	public static boolean debug = false;
 	public static boolean traceAllRays = false;
+	public static boolean showTankIDs = false;
 	public static final boolean cinematic = false;
 
 	public static String lastVersion = "Tanks v0";
@@ -121,6 +134,7 @@ public class Game
 	public static boolean enable3d = true;
 	public static boolean enable3dBg = true;
 	public static boolean angledView = false;
+	public static boolean xrayBullets = true;
 
 	public static boolean followingCam = false;
 	public static boolean firstPerson = false;
@@ -140,7 +154,10 @@ public class Game
 	public static boolean previewCrusades = true;
 
 	public static boolean deterministicMode = false;
+	public static boolean deterministic30Fps = false;
 	public static int seed = 0;
+
+	public static boolean invulnerable = false;
 
 	public static boolean warnBeforeClosing = true;
 
@@ -188,6 +205,7 @@ public class Game
 	public static RegistryItem registryItem = new RegistryItem();
 	public static RegistryGenerator registryGenerator = new RegistryGenerator();
 	public static RegistryModelTank registryModelTank = new RegistryModelTank();
+	public static RegistryMinigame registryMinigame = new RegistryMinigame();
 
 	public static boolean enableExtensions = false;
 	public static boolean autoLoadExtensions = true;
@@ -292,11 +310,13 @@ public class Game
 		NetworkEventMap.register(EventTankControllerUpdateC.class);
 		NetworkEventMap.register(EventTankControllerUpdateAmmunition.class);
 		NetworkEventMap.register(EventTankControllerAddVelocity.class);
-		NetworkEventMap.register(EventCreatePlayer.class);
-		NetworkEventMap.register(EventCreateTank.class);
-		NetworkEventMap.register(EventCreateCustomTank.class);
+		NetworkEventMap.register(EventTankPlayerCreate.class);
+		NetworkEventMap.register(EventTankCreate.class);
+		NetworkEventMap.register(EventTankCustomCreate.class);
+		NetworkEventMap.register(EventTankSpawn.class);
+		NetworkEventMap.register(EventAirdropTank.class);
 		NetworkEventMap.register(EventTankUpdateHealth.class);
-		NetworkEventMap.register(EventRemoveTank.class);
+		NetworkEventMap.register(EventTankRemove.class);
 		NetworkEventMap.register(EventShootBullet.class);
 		NetworkEventMap.register(EventBulletBounce.class);
 		NetworkEventMap.register(EventBulletUpdate.class);
@@ -306,7 +326,7 @@ public class Game
 		NetworkEventMap.register(EventBulletElectricStunEffect.class);
 		NetworkEventMap.register(EventBulletUpdateTarget.class);
 		NetworkEventMap.register(EventLayMine.class);
-		NetworkEventMap.register(EventMineExplode.class);
+		NetworkEventMap.register(EventMineRemove.class);
 		NetworkEventMap.register(EventMineChangeTimer.class);
 		NetworkEventMap.register(EventExplosion.class);
 		NetworkEventMap.register(EventTankTeleport.class);
@@ -322,10 +342,23 @@ public class Game
 		NetworkEventMap.register(EventObstacleHit.class);
 		NetworkEventMap.register(EventObstacleShrubberyBurn.class);
 		NetworkEventMap.register(EventObstacleSnowMelt.class);
+		NetworkEventMap.register(EventObstacleBoostPanelEffect.class);
 		NetworkEventMap.register(EventPlaySound.class);
 		NetworkEventMap.register(EventSendTankColors.class);
 		NetworkEventMap.register(EventShareLevel.class);
 		NetworkEventMap.register(EventShareCrusade.class);
+		NetworkEventMap.register(EventItemDrop.class);
+		NetworkEventMap.register(EventItemPickup.class);
+		NetworkEventMap.register(EventItemDropDestroy.class);
+		NetworkEventMap.register(EventStatusEffectBegin.class);
+		NetworkEventMap.register(EventStatusEffectDeteriorate.class);
+		NetworkEventMap.register(EventStatusEffectEnd.class);
+		NetworkEventMap.register(EventArcadeHit.class);
+		NetworkEventMap.register(EventArcadeRampage.class);
+		NetworkEventMap.register(EventArcadeClearMovables.class);
+		NetworkEventMap.register(EventArcadeFrenzy.class);
+		NetworkEventMap.register(EventArcadeEnd.class);
+		NetworkEventMap.register(EventArcadeBonuses.class);
 
 		NetworkEventMap.register(EventSendOnlineClientDetails.class);
 		NetworkEventMap.register(EventSilentDisconnect.class);
@@ -399,6 +432,12 @@ public class Game
 	public static void registerTankEmblem(String dir)
 	{
 		Game.registryModelTank.tankEmblems.add(new RegistryModelTank.TankModelEntry("emblems/" + dir));
+	}
+
+	public static void registerMinigame(Class<? extends Minigame> minigame, String name, String desc)
+	{
+		registryMinigame.minigames.put(name, minigame);
+		registryMinigame.minigameDescriptions.put(name, desc);
 	}
 
 	public static void initScript()
@@ -478,6 +517,8 @@ public class Game
 		registerItem(ItemBullet.class, ItemBullet.item_name, "bullet_normal.png");
 		registerItem(ItemMine.class, ItemMine.item_name, "mine.png");
 		registerItem(ItemShield.class, ItemShield.item_name, "shield.png");
+
+		registerMinigame(Arcade.class, "Arcade mode", "A gamemode which gets crazier as you---destroy more tanks.------Featuring a score mechanic, unlimited---lives, a time limit, item drops, and---end-game bonuses!");
 
 		TankPlayer.default_bullet = (ItemBullet) Item.parseItem(null, Translation.translate("Basic bullet") + ",bullet_normal.png,1,0,1,100,bullet,normal,trail,3.125,1,1.0,5,20.0,10.0,1.0,false");
 		TankPlayer.default_mine = (ItemMine) Item.parseItem(null, Translation.translate("Basic mine") + ",mine.png,1,0,1,100,mine,1000.0,50.0,125.0,2.0,2,50.0,30.0,true");
@@ -730,6 +771,53 @@ public class Game
 				new ModelPart.Point(-outerHealthEdge * lengthMul, outerHealthEdge, healthHeight), 1);
 	}
 
+	/**
+	 * Adds a tank to the game's movables list and generates/registers a network ID for it.
+	 * Use this if you want to add computer-controlled tanks if you are not connected to a server.
+	 *
+	 * @param tank the tank to add
+	 */
+	public static void addTank(Tank tank)
+	{
+		if (tank instanceof TankPlayer || tank instanceof TankPlayerController || tank instanceof TankPlayerRemote || tank instanceof TankRemote)
+			Game.exitToCrash(new RuntimeException("Invalid tank added with Game.addTank(" + tank + ")"));
+
+		tank.registerNetworkID();
+		Game.movables.add(tank);
+		Game.eventsOut.add(new EventTankCreate(tank));
+	}
+
+	/**
+	 * Adds a tank to the game's movables list and generates/registers a network ID for it after it was spawned by another tank.
+	 * Use this if you want to spawn computer-controlled tanks from another tank if you are not connected to a server.
+	 *
+	 * @param tank the tank to add
+	 * @param parent the tank that is spawning the tank
+	 */
+	public static void spawnTank(Tank tank, Tank parent)
+	{
+		tank.registerNetworkID();
+		Game.movables.add(tank);
+		Game.eventsOut.add(new EventTankSpawn(tank, parent));
+	}
+
+	/**
+	 * Adds a tank to the game's movables list and generates/registers a network ID for it.
+	 * Use this if you want to add computer-controlled tanks if you are not connected to a server.
+	 */
+	public static void addPlayerTank(Player player, double x, double y, double angle, Team t)
+	{
+		addPlayerTank(player, x, y, angle, t, 0);
+	}
+
+	public static void addPlayerTank(Player player, double x, double y, double angle, Team t, double drawAge)
+	{
+		int id = Tank.nextFreeNetworkID();
+		EventTankPlayerCreate e = new EventTankPlayerCreate(player, x, y, angle, t, id, drawAge);
+		Game.eventsOut.add(e);
+		e.execute();
+	}
+
 	public static boolean usernameInvalid(String username)
 	{
 		if (username.length() > 20)
@@ -789,8 +877,21 @@ public class Game
 
 	public static void exitToInterlevel()
 	{
+		Minigame m = null;
+		if (Game.currentLevel instanceof Minigame)
+			m = (Minigame) Game.currentLevel;
+
 		silentCleanUp();
-		screen = new ScreenInterlevel();
+
+		if (m == null)
+		{
+			if (ScreenPartyHost.isServer)
+				screen = new ScreenPartyInterlevel();
+			else
+				screen = new ScreenInterlevel();
+		}
+		else
+			m.loadInterlevelScreen();
 	}
 
 	public static void exitToEditor(String name)
@@ -901,6 +1002,7 @@ public class Game
 		Game.tilesG = new double[28][18];
 		Game.tilesB = new double[28][18];
 		Game.tilesDepth = new double[28][18];
+		Game.tilesFlash = new double[28][18];
 		Game.game.heightGrid = new double[28][18];
 		Game.game.groundHeightGrid = new double[28][18];
 		Game.tileDrawables = new Obstacle[28][18];
@@ -910,14 +1012,15 @@ public class Game
 		if (Game.fancyTerrain)
 			var = 20;
 
+		Random tilesRandom = new Random(0);
 		for (int i = 0; i < 28; i++)
 		{
 			for (int j = 0; j < 18; j++)
 			{
-				Game.tilesR[i][j] = (235 + Math.random() * var);
-				Game.tilesG[i][j] = (207 + Math.random() * var);
-				Game.tilesB[i][j] = (166 + Math.random() * var);
-				Game.tilesDepth[i][j] = Math.random() * var / 2;
+				Game.tilesR[i][j] = (235 + tilesRandom.nextDouble() * var);
+				Game.tilesG[i][j] = (207 + tilesRandom.nextDouble() * var);
+				Game.tilesB[i][j] = (166 + tilesRandom.nextDouble() * var);
+				Game.tilesDepth[i][j] = tilesRandom.nextDouble() * var / 2;
 			}
 		}
 
@@ -1026,7 +1129,7 @@ public class Game
 	public static void registerTankMusic(String tank, String track)
 	{
 		if (!Game.registryTank.tankMusics.containsKey(tank))
-			Game.registryTank.tankMusics.put(tank, new ArrayList<>());
+			Game.registryTank.tankMusics.put(tank, new HashSet<>());
 
 		Game.registryTank.tankMusics.get(tank).add(track);
 	}

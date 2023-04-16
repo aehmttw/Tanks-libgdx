@@ -3,17 +3,17 @@ package tanks.registry;
 import tanks.Game;
 import tanks.hotbar.item.ItemBullet;
 import tanks.tank.Tank;
-import tanks.tank.TankAIControlled;
 import tanks.tank.TankUnknown;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Random;
 
 public class RegistryTank 
 {
-	public HashMap<String, ArrayList<String>> tankMusics = new HashMap<>();
+	public HashMap<String, HashSet<String>> tankMusics = new HashMap<>();
 
 	public ArrayList<TankEntry> tankEntries = new ArrayList<>();
 	protected double maxTankWeight = 0;
@@ -76,6 +76,11 @@ public class RegistryTank
 				Tank t = c.newInstance(this.name, x, y, a);
 				t.fromRegistry = true;
 				t.bullet.className = ItemBullet.classMap2.get(t.bullet.bulletClass);
+				t.musicTracks = Game.registryTank.tankMusics.get(this.name);
+
+				if (t.musicTracks == null)
+					t.musicTracks = new HashSet<>();
+
 				return t;
 			}
 			catch (Exception e)

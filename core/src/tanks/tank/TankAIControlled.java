@@ -3,10 +3,10 @@ package tanks.tank;
 import basewindow.IModel;
 import tanks.*;
 import tanks.bullet.*;
-import tanks.event.*;
+import tanks.network.event.*;
 import tanks.gui.screen.ScreenGame;
-import tanks.gui.screen.ScreenPartyHost;
 import tanks.hotbar.item.Item;
+import tanks.hotbar.item.ItemBullet;
 import tanks.obstacle.Obstacle;
 import tanks.obstacle.ObstacleTeleporter;
 import tanks.registry.RegistryTank;
@@ -16,6 +16,7 @@ import static tanks.tank.TankProperty.Category.*;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Random;
 
 /** This class is the 'skeleton' tank class.
@@ -222,6 +223,12 @@ public class TankAIControlled extends Tank
 			this.weight = weight;
 		}
 
+		public SpawnedTankEntry(TankAIControlled t, double weight, boolean noDelete)
+		{
+			this.tank = t;
+			this.weight = weight;
+		}
+
 		public String toString()
 		{
 			return this.weight + "x" + this.tank.toString();
@@ -272,9 +279,6 @@ public class TankAIControlled extends Tank
 
 	/** If a direct line of sight to the target enemy exists, set to true*/
 	protected boolean seesTargetEnemy = false;
-
-	/** Age in frames*/
-	protected double age = 0;
 
 	/** Stores distances to obstacles or tanks in 8 directions*/
 	protected double[] distances = new double[8];
@@ -364,7 +368,7 @@ public class TankAIControlled extends Tank
 	protected boolean hasTarget = true;
 
 	/** If true, charges towards nearest enemy and explodes */
-	protected boolean suicidal = false;
+	public boolean suicidal = false;
 
 	/** Direction to strafe around target enemy, if set to strafe mode on sight*/
 	protected double strafeDirection = Math.PI / 2;
@@ -389,7 +393,7 @@ public class TankAIControlled extends Tank
 	protected ArrayList<Tank> spawnedTanks = new ArrayList<>();
 
 	/** Time until the tank will commit suicide */
-	protected double timeUntilDeath;
+	public double timeUntilDeath;
 
 	/** The random number generator the tank uses to make decisions*/
 	protected Random random;
@@ -434,6 +438,9 @@ public class TankAIControlled extends Tank
 	protected double baseColorG;
 	protected double baseColorB;
 	protected double baseMaxSpeed;
+
+	/** Set if tank transformed in the last frame */
+	public boolean justTransformed = false;
 
 	protected double lastCooldown = this.cooldown;
 
@@ -508,10 +515,10 @@ public class TankAIControlled extends Tank
 
 		this.angle = (this.angle + Math.PI * 2) % (Math.PI * 2);
 
+		this.justTransformed = false;
+
 		if (this.spawnedTankEntries.size() > 0 && !ScreenGame.finishedQuick && !this.destroy)
 			this.updateSpawningAI();
-
-		this.age += Panel.frameFrequency;
 
 		this.vX *= Math.pow(1 - (this.friction * this.frictionModifier), Panel.frameFrequency);
 		this.vY *= Math.pow(1 - (this.friction * this.frictionModifier), Panel.frameFrequency);
@@ -560,8 +567,8 @@ public class TankAIControlled extends Tank
 		if (currentSpeed > maxSpeed * maxSpeedModifier)
 			this.setPolarMotion(this.getPolarDirection(), maxSpeed * maxSpeedModifier);
 
-		this.bullet.updateCooldown();
-		this.mine.updateCooldown();
+		this.bullet.updateCooldown(1);
+		this.mine.updateCooldown(1);
 		this.updateVisibility();
 		super.update();
 	}
@@ -642,7 +649,9 @@ public class TankAIControlled extends Tank
 
 	public void charge()
 	{
-		this.cooldown -= Panel.frameFrequency;
+		double reload = this.getAttributeValue(AttributeModifier.reload, 1);
+
+		this.cooldown -= Panel.frameFrequency * reload;
 		this.justCharged = true;
 
 		double frac = this.cooldown / this.lastCooldown;
@@ -749,14 +758,14 @@ public class TankAIControlled extends Tank
 		if (this.shotSound != null)
 			Drawing.drawing.playGlobalSound(this.shotSound, (float) (Bullet.bullet_size / this.bullet.size));
 
-		b.setPolarMotion(angle + offset + this.shotOffset, this.bullet.speed);
-		this.addPolarMotion(b.getPolarDirection() + Math.PI, 25.0 / 32.0 * b.recoil * b.frameDamageMultipler);
+		b.setPolarMotion(angle + offset + this.shotOffset, speed);
+		this.addPolarMotion(b.getPolarDirection() + Math.PI, 25.0 / 32.0 * b.recoil * this.getAttributeValue(AttributeModifier.recoil, 1) * b.frameDamageMultipler);
 		b.speed = speed;
 
 		if (b instanceof BulletArc)
-			b.vZ = this.distance / this.bullet.speed * 0.5 * BulletArc.gravity;
+			b.vZ = this.distance / speed * 0.5 * BulletArc.gravity;
 		else
-			b.moveOut(50 / this.bullet.speed * this.size / Game.tile_size);
+			b.moveOut(50 / speed * this.size / Game.tile_size);
 
 		Game.movables.add(b);
 		Game.eventsOut.add(new EventShootBullet(b));
@@ -908,6 +917,9 @@ public class TankAIControlled extends Tank
 
 	public void handleSightTransformation()
 	{
+		if (this.justTransformed)
+			return;
+
 		this.transformRevertTimer = this.sightTransformRevertTime;
 		this.willRevertTransformation = true;
 		this.transform(this.sightTransformTank);
@@ -926,12 +938,16 @@ public class TankAIControlled extends Tank
 
 	public void handleHealthTransformation()
 	{
+		if (this.justTransformed)
+			return;
+
 		this.willRevertTransformation = false;
 		this.transform(this.healthTransformTank);
 	}
 
 	public void transform(TankAIControlled t)
 	{
+		this.justTransformed = true;
 		this.transformTank = t;
 		this.possessingTank = t;
 		t.posX = this.posX;
@@ -947,15 +963,27 @@ public class TankAIControlled extends Tank
 		t.possessor = this;
 		t.skipNextUpdate = true;
 		t.attributes = this.attributes;
+		t.statusEffects = this.statusEffects;
 		t.coinValue = this.coinValue;
 		t.cooldown = this.cooldown;
+		t.currentlyVisible = true;
 
-		Tank.idMap.remove(t.networkID);
-		Tank.freeIDs.add(t.networkID);
+		Tank p = this;
+		if (this.getTopLevelPossessor() != null)
+		{
+			p = this.getTopLevelPossessor();
+		}
 
-		t.networkID = this.networkID;
+		if (p instanceof TankAIControlled && ((TankAIControlled) p).transformMimic)
+		{
+			t.baseModel = this.baseModel;
+			t.turretModel = this.turretModel;
+			t.turretBaseModel = this.turretBaseModel;
+		}
+
 		t.crusadeID = this.crusadeID;
-		Tank.idMap.put(this.networkID, t);
+
+		t.setNetworkID(this.networkID);
 
 		Game.movables.add(t);
 		Game.removeMovables.add(this);
@@ -1043,82 +1071,7 @@ public class TankAIControlled extends Tank
 
 		if (!this.currentlySeeking && this.enablePathfinding && this.random.nextDouble() < this.seekChance * Panel.frameFrequency && this.posX > 0 && this.posX < Game.currentSizeX * Game.tile_size && this.posY > 0 && this.posY < Game.currentSizeY * Game.tile_size)
 		{
-			Tile[][] tiles = new Tile[Game.currentSizeX][Game.currentSizeY];
-
-			for (int i = 0; i < tiles.length; i++)
-			{
-				for (int j = 0; j < tiles[i].length; j++)
-				{
-					tiles[i][j] = new Tile(this.random, i, j);
-				}
-			}
-
-			for (Obstacle o: Game.obstacles)
-			{
-				if (o.posX >= 0 && o.posY >= 0 && o.posX <= Game.currentSizeX * Game.tile_size && o.posY <= Game.currentSizeY * Game.tile_size)
-				{
-					Tile.Type t = Tile.Type.solid;
-
-					if (!o.tankCollision && !(o instanceof ObstacleTeleporter))
-						t = Tile.Type.empty;
-					else if (o.destructible && this.enableMineLaying)
-						t = Tile.Type.destructible;
-
-					int x = (int) (o.posX / Game.tile_size);
-					int y = (int) (o.posY / Game.tile_size);
-					Tile tile = tiles[x][y];
-					tile.type = t;
-					tile.unfavorability = Math.min(tile.unfavorability, 10);
-
-					for (int i = -1; i <= 1; i++)
-					{
-						for (int j = -1; j <= 1; j++)
-						{
-							if (x + i > 0 && x + i < tiles.length && y + j > 0 && y + j < tiles[0].length)
-								tiles[x + i][y + j].unfavorability = Math.max(tile.unfavorability, 1);
-						}
-					}
-				}
-			}
-
-			for (Movable m: Game.movables)
-			{
-				if (this.isInterestingPathTarget(m))
-					tiles[Math.min(Game.currentSizeX - 1, Math.max(0, (int) (m.posX / Game.tile_size)))][Math.min(Game.currentSizeY - 1, Math.max(0, (int) (m.posY / Game.tile_size)))].interesting = true;
-			}
-
-			ArrayList<Tile> queue = new ArrayList<>();
-
-			Tile t = tiles[(int)(this.posX / Game.tile_size)][(int)(this.posY / Game.tile_size)];
-			t.explored = true;
-			queue.add(t);
-
-			Tile current = null;
-			boolean found = false;
-
-			while (!queue.isEmpty())
-			{
-				current = queue.remove(0);
-
-				if (current.search(queue, tiles))
-				{
-					found = true;
-					break;
-				}
-			}
-
-			if (found)
-			{
-				this.seekTimer = this.seekTimerBase;
-				this.currentlySeeking = true;
-				this.path = new ArrayList<>();
-
-				while (current.parent != null)
-				{
-					this.path.add(0, current);
-					current = current.parent;
-				}
-			}
+			this.pathfind();
 		}
 
 		this.seekPause = Math.max(0, this.seekPause - Panel.frameFrequency);
@@ -1129,6 +1082,86 @@ public class TankAIControlled extends Tank
 			{
 				this.overrideDirection = true;
 				this.setAccelerationInDirection(this.parent.posX, this.parent.posY, this.acceleration);
+			}
+		}
+	}
+
+	public void pathfind()
+	{
+		Tile[][] tiles = new Tile[Game.currentSizeX][Game.currentSizeY];
+
+		for (int i = 0; i < tiles.length; i++)
+		{
+			for (int j = 0; j < tiles[i].length; j++)
+			{
+				tiles[i][j] = new Tile(this.random, i, j);
+			}
+		}
+
+		for (Obstacle o: Game.obstacles)
+		{
+			if (o.posX >= 0 && o.posY >= 0 && o.posX <= Game.currentSizeX * Game.tile_size && o.posY <= Game.currentSizeY * Game.tile_size)
+			{
+				Tile.Type t = Tile.Type.solid;
+
+				if (!o.tankCollision && !(o instanceof ObstacleTeleporter))
+					t = Tile.Type.empty;
+				else if (o.destructible && this.enableMineLaying)
+					t = Tile.Type.destructible;
+
+				int x = (int) (o.posX / Game.tile_size);
+				int y = (int) (o.posY / Game.tile_size);
+				Tile tile = tiles[x][y];
+				tile.type = t;
+				tile.unfavorability = Math.min(tile.unfavorability, 10);
+
+				for (int i = -1; i <= 1; i++)
+				{
+					for (int j = -1; j <= 1; j++)
+					{
+						if (x + i > 0 && x + i < tiles.length && y + j > 0 && y + j < tiles[0].length)
+							tiles[x + i][y + j].unfavorability = Math.max(tile.unfavorability, 1);
+					}
+				}
+			}
+		}
+
+		for (Movable m: Game.movables)
+		{
+			if (this.isInterestingPathTarget(m))
+				tiles[Math.min(Game.currentSizeX - 1, Math.max(0, (int) (m.posX / Game.tile_size)))][Math.min(Game.currentSizeY - 1, Math.max(0, (int) (m.posY / Game.tile_size)))].interesting = true;
+		}
+
+		ArrayList<Tile> queue = new ArrayList<>();
+
+		Tile t = tiles[(int)(this.posX / Game.tile_size)][(int)(this.posY / Game.tile_size)];
+		t.explored = true;
+		queue.add(t);
+
+		Tile current = null;
+		boolean found = false;
+
+		while (!queue.isEmpty())
+		{
+			current = queue.remove(0);
+
+			if (current.search(queue, tiles))
+			{
+				found = true;
+				break;
+			}
+		}
+
+		if (found)
+		{
+			this.seekTimer = this.seekTimerBase;
+			this.currentlySeeking = true;
+			this.path = new ArrayList<>();
+
+			while (current.parent != null)
+			{
+				this.path.add(0, current);
+				current = current.parent;
 			}
 		}
 	}
@@ -1295,7 +1328,10 @@ public class TankAIControlled extends Tank
 			this.pitch -= Movable.angleBetween(this.pitch, 0) / 10 * Panel.frameFrequency;
 
 		if (!this.chargeUp)
-			this.cooldown -= Panel.frameFrequency;
+		{
+			double reload = this.getAttributeValue(AttributeModifier.reload, 1);
+			this.cooldown -= Panel.frameFrequency * reload;
+		}
 
 		this.cooldownIdleTime += Panel.frameFrequency;
 
@@ -1727,7 +1763,7 @@ public class TankAIControlled extends Tank
 				this.straightShoot = false;
 		}
 
-		if (this.sightTransformTank != null && seesTargetEnemy)
+		if (this.sightTransformTank != null && seesTargetEnemy && this.inControlOfMotion)
 			this.handleSightTransformation();
 	}
 
@@ -1918,7 +1954,7 @@ public class TankAIControlled extends Tank
 				this.mineTimer = Math.max(0, this.mineTimer - Panel.frameFrequency);
 		}
 
-		if (nearestDist <= 1 && this.mineFleeTimer <= 0)
+		if (nearestDist <= 1 && this.mineFleeTimer <= 0 && this.enableMovement)
 		{
 			this.overrideDirection = true;
 			this.setPolarAcceleration(this.random.nextDouble() * 2 * Math.PI, acceleration);
@@ -1960,9 +1996,12 @@ public class TankAIControlled extends Tank
 			}
 		}
 
-		//double angleV = this.getPolarDirection() + Math.PI + (this.random.nextDouble() - 0.5) * Math.PI / 2;
-		this.overrideDirection = true;
-		this.setPolarAcceleration(greatest * 2.0 / count * Math.PI, acceleration);
+		if (this.enableMovement) // Otherwise stationary tanks will take off when they lay mines :P
+		{
+			this.setPolarAcceleration(greatest * 2.0 / count * Math.PI, acceleration);
+			this.overrideDirection = true;
+		}
+
 		laidMine = true;
 	}
 
@@ -2038,7 +2077,7 @@ public class TankAIControlled extends Tank
 
 			Tank t;
 
-			TankAIControlled t2 = new TankAIControlled("", this.posX + x, this.posY + y, 0, 0, 0, 0, this.angle, ShootAI.none);
+			Tank t2 = null;
 
 			double totalWeight = 0;
 			for (SpawnedTankEntry s: this.spawnedTankEntries)
@@ -2053,7 +2092,16 @@ public class TankAIControlled extends Tank
 
 				if (selected <= 0)
 				{
-					s.tank.cloneProperties(t2);
+					if (s.tank.getClass().equals(TankAIControlled.class))
+					{
+						t2 = new TankAIControlled("", this.posX + x, this.posY + y, 0, 0, 0, 0, this.angle, ShootAI.none);
+						s.tank.cloneProperties((TankAIControlled) t2);
+					}
+					else
+					{
+						t2 = Game.registryTank.getEntry(s.tank.name).getTank(this.posX + x, this.posY + y, 0);
+					}
+
 					break;
 				}
 			}
@@ -2064,10 +2112,9 @@ public class TankAIControlled extends Tank
 			t.crusadeID = this.crusadeID;
 			t.parent = this;
 
-			Game.eventsOut.add(new EventCreateTank(t));
 			this.spawnedTanks.add(t);
 
-			Game.movables.add(t);
+			Game.spawnTank(t, this);
 		}
 		catch (Exception e)
 		{
@@ -2137,6 +2184,8 @@ public class TankAIControlled extends Tank
 	@Override
 	public void updatePossessing()
 	{
+		this.justTransformed = false;
+
 		if (this.transformMimic)
 			this.updatePossessingMimic();
 		else
@@ -2145,7 +2194,7 @@ public class TankAIControlled extends Tank
 
 	public void updatePossessingTransform()
 	{
-		if (this.transformTank.destroy || this.destroy || ScreenGame.finishedQuick || this.positionLock || !this.willRevertTransformation)
+		if (this.transformTank.destroy || this.destroy || ScreenGame.finishedQuick || this.positionLock || !this.willRevertTransformation || this.justTransformed)
 			return;
 
 		Movable m = null;
@@ -2182,13 +2231,16 @@ public class TankAIControlled extends Tank
 			this.pitch = this.sightTransformTank.pitch;
 			this.drawAge = this.sightTransformTank.drawAge;
 			this.attributes = this.sightTransformTank.attributes;
+			this.statusEffects = this.sightTransformTank.statusEffects;
 			this.possessingTank = null;
+			this.currentlyVisible = true;
 			this.targetEnemy = null;
 			Drawing.drawing.playGlobalSound("slowdown.ogg", 0.75f);
 			Game.eventsOut.add(new EventTankTransform(this, this, EventTankTransform.no_effect));
 			Game.movables.add(this);
 			Game.removeMovables.add(this.sightTransformTank);
 			this.skipNextUpdate = true;
+			this.justTransformed = true;
 			this.seesTargetEnemy = false;
 		}
 
@@ -2249,12 +2301,15 @@ public class TankAIControlled extends Tank
 			this.orientation = t.orientation;
 			this.drawAge = t.drawAge;
 			this.attributes = t.attributes;
+			this.statusEffects = t.statusEffects;
 			this.targetEnemy = null;
 			Drawing.drawing.playGlobalSound("slowdown.ogg", 1);
+
 			Game.movables.add(this);
 			Game.removeMovables.add(t);
+
 			this.skipNextUpdate = true;
-			Game.eventsOut.add(new EventTankMimicTransform(this, false));
+			Game.eventsOut.add(new EventTankMimicTransform(this, this));
 
 			this.tryPossess();
 		}
@@ -2309,7 +2364,15 @@ public class TankAIControlled extends Tank
 				((TankAIControlled) ct).cloneProperties((TankAIControlled) t);
 			}
 			else
+			{
 				t = (Tank) c.getConstructor(String.class, double.class, double.class, double.class).newInstance(this.name, this.posX, this.posY, this.angle);
+				t.fromRegistry = true;
+				t.bullet.className = ItemBullet.classMap2.get(t.bullet.bulletClass);
+				t.musicTracks = Game.registryTank.tankMusics.get(ct.name);
+
+				if (t.musicTracks == null)
+					t.musicTracks = new HashSet<>();
+			}
 
 			t.vX = this.vX;
 			t.vY = this.vY;
@@ -2321,18 +2384,18 @@ public class TankAIControlled extends Tank
 			t.possessor = this;
 			t.skipNextUpdate = true;
 			t.attributes = this.attributes;
+			t.statusEffects = this.statusEffects;
 			t.coinValue = this.coinValue;
 
 			t.baseModel = this.baseModel;
 			t.turretModel = this.turretModel;
 			t.turretBaseModel = this.turretBaseModel;
 
-			Tank.idMap.remove(t.networkID);
-			Tank.freeIDs.add(t.networkID);
-
-			t.networkID = this.networkID;
 			t.crusadeID = this.crusadeID;
-			Tank.idMap.put(this.networkID, t);
+
+			t.setNetworkID(this.networkID);
+
+			this.justTransformed = true;
 
 			Game.movables.add(t);
 			Game.removeMovables.add(this);
@@ -2358,7 +2421,7 @@ public class TankAIControlled extends Tank
 				}
 			}
 
-			Game.eventsOut.add(new EventTankMimicTransform(this.possessingTank, player));
+			Game.eventsOut.add(new EventTankMimicTransform(this, (Tank) this.targetEnemy));
 
 			if (Game.effectsEnabled)
 			{
@@ -2387,6 +2450,9 @@ public class TankAIControlled extends Tank
 
 	public void updateMimic()
 	{
+		if (this.justTransformed)
+			return;
+
 		this.updateTarget();
 		this.tryPossess();
 	}
@@ -2570,30 +2636,6 @@ public class TankAIControlled extends Tank
 		this.aY = accY;
 	}
 
-	public void setSightTransformTank(TankAIControlled t)
-	{
-		this.sightTransformTank = t;
-
-		if (ScreenPartyHost.isServer)
-		{
-			Tank.freeIDs.add(this.sightTransformTank.networkID);
-			Tank.idMap.remove(this.sightTransformTank.networkID);
-			this.sightTransformTank.networkID = this.networkID;
-		}
-	}
-
-	public void setHealthTransformTank(TankAIControlled t)
-	{
-		this.healthTransformTank = t;
-
-		if (ScreenPartyHost.isServer)
-		{
-			Tank.freeIDs.add(this.healthTransformTank.networkID);
-			Tank.idMap.remove(this.healthTransformTank.networkID);
-			this.healthTransformTank.networkID = this.networkID;
-		}
-	}
-
 	@Override
 	public void draw()
 	{
@@ -2718,13 +2760,13 @@ public class TankAIControlled extends Tank
 						{
 							int end = s.indexOf("]");
 							String[] csv = s.substring(s.indexOf("[") + 1, end).split(", ");
-							ArrayList<String> arrayList;
+							HashSet<String> hashSet;
 							if (csv[0].equals(""))
-								arrayList = new ArrayList<>();
+								hashSet = new HashSet<>();
 							else
-								arrayList = new ArrayList<>(Arrays.asList(csv));
+								hashSet = new HashSet<>(Arrays.asList(csv));
 
-							f.set(t, arrayList);
+							f.set(t, hashSet);
 						}
 						else if (a.miscType() == TankProperty.MiscType.spawnedTanks && !propname.equals("spawned_tank"))
 						{
@@ -2749,12 +2791,6 @@ public class TankAIControlled extends Tank
 								{
 									String[] r = new String[1];
 									TankAIControlled t2 = TankAIControlled.fromString(s, r);
-
-									if (ScreenPartyHost.isServer)
-									{
-										Tank.freeIDs.add(t2.networkID);
-										Tank.idMap.remove(t2.networkID);
-									}
 
 									s = r[0];
 									target = t2;
@@ -2795,17 +2831,12 @@ public class TankAIControlled extends Tank
 								String tank = s.substring(s.indexOf("<") + 1, s.indexOf(">"));
 								s = s.substring(s.indexOf(">") + 1);
 								target = (TankAIControlled) Game.registryTank.getEntry(tank).getTank(0, 0, 0);
+								target.fromRegistry = true;
 							}
 							else
 							{
 								String[] r = new String[1];
 								TankAIControlled t2 = TankAIControlled.fromString(s, r);
-
-								if (ScreenPartyHost.isServer)
-								{
-									Tank.freeIDs.add(t2.networkID);
-									Tank.idMap.remove(t2.networkID);
-								}
 
 								s = r[0];
 								target = t2;
@@ -2858,7 +2889,8 @@ public class TankAIControlled extends Tank
 		{
 			for (Field f : TankAIControlled.class.getFields())
 			{
-				if (f.getAnnotation(TankProperty.class) != null)
+				TankProperty a = f.getAnnotation(TankProperty.class);
+				if (a != null)
 				{
 					if (Item.class.isAssignableFrom(f.getType()))
 					{
@@ -2873,18 +2905,28 @@ public class TankAIControlled extends Tank
 						{
 							TankAIControlled t2 = new TankAIControlled("", 0, 0, 0, 0, 0, 0, 0, ShootAI.none);
 
-							if (ScreenPartyHost.isServer)
-							{
-								Tank.freeIDs.add(t2.networkID);
-								Tank.idMap.remove(t2.networkID);
-							}
-
 							if (t1 instanceof TankAIControlled)
 								((TankAIControlled) t1).cloneProperties(t2);
 							f.set(t, t2);
 						}
 						else
 							f.set(t, null);
+					}
+					else if (a.miscType() == TankProperty.MiscType.spawnedTanks)
+					{
+						ArrayList<SpawnedTankEntry> a1 = (ArrayList<SpawnedTankEntry>) f.get(this);
+
+						ArrayList<SpawnedTankEntry> al = new ArrayList<SpawnedTankEntry>();
+						for (SpawnedTankEntry o: a1)
+						{
+							al.add(new SpawnedTankEntry(o.tank, o.weight, true));
+						}
+
+						f.set(t, al);
+					}
+					else if (a.miscType() == TankProperty.MiscType.music)
+					{
+						f.set(t, new HashSet<>((HashSet<String>) f.get(this)));
 					}
 					else
 						f.set(t, f.get(this));

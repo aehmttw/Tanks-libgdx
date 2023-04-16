@@ -34,9 +34,14 @@ public abstract class Screen implements IBatchRenderableObject
 	public int minBgWidth = 0;
 	public int minBgHeight = 0;
 
+	public boolean drawBgRect = true;
+
 	public double interfaceScaleZoomOverride = -1;
 
 	protected boolean redrawn = false;
+	public boolean splitTiles = false;
+
+	public IBatchRenderableObject[][] tiles;
 
 	public double lastObsSize;
 
@@ -100,7 +105,7 @@ public abstract class Screen implements IBatchRenderableObject
 		if (this.forceInBounds)
 			frac = 0;
 
-		if (!(this instanceof ScreenExit) && size >= 1 && (selfBatch || (!Game.fancyTerrain && !Game.enable3d)))
+		if (drawBgRect && (!(this instanceof ScreenExit) && size >= 1 && (selfBatch || (!Game.fancyTerrain && !Game.enable3d))))
 		{
 			Drawing.drawing.setColor(174 * frac + (1 - frac) * Level.currentColorR, 92 * frac + (1 - frac) * Level.currentColorG, 16 * frac + (1 - frac) * Level.currentColorB);
 
@@ -132,7 +137,7 @@ public abstract class Screen implements IBatchRenderableObject
 		int height = (int) ((Game.game.window.absoluteHeight - Drawing.drawing.statsHeight) / Drawing.drawing.unzoomedScale / Game.tile_size);
 
 		int iStart = (Game.currentSizeX - width) / 2 - 1;
-		int iEnd = width + 1;
+		int iEnd = width + 2 + iStart;
 
 		if (this.forceInBounds)
 		{
@@ -156,7 +161,7 @@ public abstract class Screen implements IBatchRenderableObject
 			i = i % Game.currentSizeX;
 
 			int jStart = (Game.currentSizeY - height) / 2 - 1;
-			int jEnd = height + 1;
+			int jEnd = height + 2 + jStart;
 
 			if (this.forceInBounds)
 			{
@@ -180,11 +185,16 @@ public abstract class Screen implements IBatchRenderableObject
 
 				j = j % Game.currentSizeY;
 
+				IBatchRenderableObject bo = this;
+
 				double frac2 = 0;
 				if (i1 >= 0 && i1 < Game.currentSizeX && j1 >= 0 && j1 < Game.currentSizeY)
 				{
+					if (this.splitTiles)
+						bo = this.tiles[i][j];
+
 					if (Game.fancyTerrain)
-						Drawing.drawing.setColor(Game.tilesR[i][j], Game.tilesG[i][j], Game.tilesB[i][j]);
+						Drawing.drawing.setColor(getFlashCol(Game.tilesR[i][j], i, j), getFlashCol(Game.tilesG[i][j], i, j), getFlashCol(Game.tilesB[i][j], i, j));
 					else
 						Drawing.drawing.setColor(Level.currentColorR, Level.currentColorG, Level.currentColorB);
 				}
@@ -196,7 +206,10 @@ public abstract class Screen implements IBatchRenderableObject
 					if (frac >= 1)
 						continue;
 
-					Drawing.drawing.setColor(174 * frac + (1 - frac) * Game.tilesR[i][j], 92 * frac + (1 - frac) * Game.tilesG[i][j], 16 * frac + (1 - frac) * Game.tilesB[i][j]);
+					if (this.splitTiles)
+						bo = this.tiles[i][j];
+
+					Drawing.drawing.setColor(174 * frac + (1 - frac) * getFlashCol(Game.tilesR[i][j], i, j), 92 * frac + (1 - frac) * getFlashCol(Game.tilesG[i][j], i, j), 16 * frac + (1 - frac) * getFlashCol(Game.tilesB[i][j], i, j));
 				}
 
 				if (Game.enable3d)
@@ -228,7 +241,7 @@ public abstract class Screen implements IBatchRenderableObject
 
 					if (Game.tileDrawables[i][j] != null && inBounds)
 					{
-						Game.tileDrawables[i][j].drawTile(Game.tilesR[i][j], Game.tilesG[i][j], Game.tilesB[i][j], z1, extra);
+						Game.tileDrawables[i][j].drawTile(getFlashCol(Game.tilesR[i][j], i, j), getFlashCol(Game.tilesG[i][j], i, j), getFlashCol(Game.tilesB[i][j], i, j), z1, extra);
 
 						if (!Game.game.window.drawingShadow)
 							Game.tileDrawables[i][j] = null;
@@ -239,7 +252,7 @@ public abstract class Screen implements IBatchRenderableObject
 							o = 1;
 
 						if (size < 1)
-							Drawing.drawing.fillBox(this,
+							Drawing.drawing.fillBox(bo,
 									(i1 + 0.5) / Game.bgResMultiplier * Game.tile_size,
 									(j1 + 0.5) / Game.bgResMultiplier * Game.tile_size,
 									Math.max(0, 2000 - size * 2000 * (1 + Game.tilesDepth[i][j] / 10)) - Game.tile_size + z1,
@@ -248,7 +261,7 @@ public abstract class Screen implements IBatchRenderableObject
 									Game.tile_size);
 						else
 						{
-							Drawing.drawing.fillBox(this,
+							Drawing.drawing.fillBox(bo,
 									(i1 + 0.5) / Game.bgResMultiplier * Game.tile_size,
 									(j1 + 0.5) / Game.bgResMultiplier * Game.tile_size,
 									-extra,
@@ -259,7 +272,7 @@ public abstract class Screen implements IBatchRenderableObject
 					}
 				}
 				else
-					Drawing.drawing.fillRect(this,
+					Drawing.drawing.fillRect(bo,
 							(i1 + 0.5) / Game.bgResMultiplier * Game.tile_size,
 							(j1 + 0.5) / Game.bgResMultiplier * Game.tile_size,
 							Game.tile_size * size / Game.bgResMultiplier,
@@ -272,17 +285,22 @@ public abstract class Screen implements IBatchRenderableObject
 			if (Game.game.window.shapeRenderer.supportsBatching)
 				Game.game.window.shapeRenderer.setBatchMode(false, true, true, false, true);
 		}
-		else if (Game.game.window.shapeRenderer.supportsBatching)
+		else if (Game.game.window.shapeRenderer.supportsBatching && drawBgRect)
 			Drawing.drawing.drawTerrainRenderers();
 
 
-		if (this.drawDarkness)
+		if (this.drawDarkness && drawBgRect)
 		{
 			Drawing.drawing.setColor(0, 0, 0, Math.max(0, Panel.darkness));
 			Game.game.window.shapeRenderer.fillRect(0, 0, Game.game.window.absoluteWidth, Game.game.window.absoluteHeight - Drawing.drawing.statsHeight);
 		}
 
 		this.lastObsSize = Obstacle.draw_size;
+	}
+
+	public double getFlashCol(double col, int i, int j)
+	{
+		return col * (1 - Game.tilesFlash[i][j]) + Game.tilesFlash[i][j] * 255;
 	}
 
 	public double getOffsetX()
@@ -347,5 +365,54 @@ public abstract class Screen implements IBatchRenderableObject
 	public void setRedrawn(boolean b)
 	{
 		this.redrawn = b;
+	}
+
+	public static class FlashingTile implements IBatchRenderableObject
+	{
+		public boolean redrawn = false;
+		public int posX;
+		public int posY;
+
+		public double flash;
+
+		public FlashingTile(int x, int y)
+		{
+			this.posX = x;
+			this.posY = y;
+		}
+
+		@Override
+		public boolean positionChanged()
+		{
+			return false;
+		}
+
+		@Override
+		public boolean colorChanged()
+		{
+			double flash = Game.tilesFlash[this.posX][this.posY];
+
+			if (flash != this.flash)
+			{
+				this.flash = flash;
+				return true;
+			}
+
+			return false;
+		}
+
+		@Override
+		public boolean wasRedrawn()
+		{
+			boolean r = this.redrawn;
+			this.redrawn = false;
+			return r;
+		}
+
+		@Override
+		public void setRedrawn(boolean b)
+		{
+			this.redrawn = b;
+		}
 	}
 }

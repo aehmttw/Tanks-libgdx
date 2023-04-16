@@ -10,14 +10,10 @@ import java.io.File;
 
 public class ScreenAccessCodeExpired extends ScreenLayout
 {
-    Button back = new Button(sizeX / 2, sizeY / 2 + 60, 350, 40, "Ok", new Runnable()
+    Button back = new Button(sizeX / 2, sizeY / 2 + 60, 350, 40, "Ok", () ->
     {
-        @Override
-        public void run()
-        {
-            ScreenInsertAccessCode s = new ScreenInsertAccessCode(player);
-            s.setScreen();
-        }
+        ScreenInsertAccessCode s = new ScreenInsertAccessCode(player);
+        s.setScreen();
     }
     );
 
@@ -33,7 +29,7 @@ public class ScreenAccessCodeExpired extends ScreenLayout
         back.wait = true;
         this.buttons.add(back);
 
-        this.music = "tomato_feast_2.ogg";
+        this.music = "menu_2.ogg";
         this.musicID = "menu";
 
         synchronized (PlayerMap.instance)

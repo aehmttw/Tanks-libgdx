@@ -1,12 +1,11 @@
 package tanks.tank;
 
 import tanks.*;
-import tanks.event.EventMineChangeTimer;
-import tanks.event.EventMineExplode;
+import tanks.network.event.EventMineChangeTimer;
+import tanks.network.event.EventMineRemove;
 import tanks.gui.IFixedMenu;
 import tanks.gui.Scoreboard;
 import tanks.gui.screen.ScreenPartyLobby;
-import tanks.hotbar.item.Item;
 import tanks.hotbar.item.ItemMine;
 
 import java.util.ArrayList;
@@ -34,7 +33,7 @@ public class Mine extends Movable implements IAvoidObject
     public double cooldown = 0;
     public int lastBeep = Integer.MAX_VALUE;
 
-    public int networkID;
+    public int networkID = -1;
 
     public static int currentID = 0;
     public static ArrayList<Integer> freeIDs = new ArrayList<>();
@@ -189,14 +188,14 @@ public class Mine extends Movable implements IAvoidObject
 
     public void explode()
     {
-        Game.eventsOut.add(new EventMineExplode(this));
+        Game.eventsOut.add(new EventMineRemove(this));
         Game.removeMovables.add(this);
-
-        freeIDs.add(this.networkID);
-        idMap.remove(this.networkID);
 
         if (!ScreenPartyLobby.isClient)
         {
+            freeIDs.add(this.networkID);
+            idMap.remove(this.networkID);
+
             Explosion e = new Explosion(this);
             e.explode();
 

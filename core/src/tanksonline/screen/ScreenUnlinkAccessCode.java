@@ -14,22 +14,18 @@ public class ScreenUnlinkAccessCode extends ScreenLayout
 {
     public AccessCode accessCode;
 
-    Button unlink = new Button(sizeX / 2, sizeY / 2 + 150, 350, 40, "Unlink access code", new Runnable()
+    Button unlink = new Button(sizeX / 2, sizeY / 2 + 150, 350, 40, "Unlink access code", () ->
     {
-        @Override
-        public void run()
+        synchronized (PlayerMap.instance)
         {
-            synchronized (PlayerMap.instance)
-            {
-                TanksOnlinePlayer p = PlayerMap.instance.getPlayer(player.computerID);
-                p.accessCode.players.remove(p);
-                p.accessCode.save(new File(PlayerMap.access_codes_dir + "/" + p.accessCode.id + ".tanks"));
-                p.accessCode = null;
-            }
-
-            ScreenInsertAccessCode s = new ScreenInsertAccessCode(player);
-            s.setScreen();
+            TanksOnlinePlayer p = PlayerMap.instance.getPlayer(player.computerID);
+            p.accessCode.players.remove(p);
+            p.accessCode.save(new File(PlayerMap.access_codes_dir + "/" + p.accessCode.id + ".tanks"));
+            p.accessCode = null;
         }
+
+        ScreenInsertAccessCode s = new ScreenInsertAccessCode(player);
+        s.setScreen();
     }
     );
 
@@ -49,7 +45,7 @@ public class ScreenUnlinkAccessCode extends ScreenLayout
         super(player);
         this.accessCode = ac;
 
-        this.music = "tomato_feast_3.ogg";
+        this.music = "menu_3.ogg";
         this.musicID = "menu";
 
         this.texts.add(new ScreenOnline.Text("Unlink access code", sizeX / 2, sizeY / 2 - 150, 24, 0));

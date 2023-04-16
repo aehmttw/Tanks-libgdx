@@ -1,5 +1,6 @@
 package tanks.hotbar.item;
 
+import tanks.AttributeModifier;
 import tanks.Game;
 import tanks.Panel;
 import tanks.Player;
@@ -8,6 +9,7 @@ import tanks.gui.property.UIPropertyBoolean;
 import tanks.gui.property.UIPropertyDouble;
 import tanks.gui.property.UIPropertyInt;
 import tanks.gui.property.UIPropertySelector;
+import tanks.minigames.Minigame;
 import tanks.tank.Tank;
 
 import java.util.HashMap;
@@ -86,6 +88,8 @@ public class ItemBullet extends Item
 
 			int q = (int) Math.min(this.shotCount, Math.ceil(remainingQty / useAmt));
 
+			double speedmul = m.getAttributeValue(AttributeModifier.bullet_speed, 1);
+
 			for (int i = 0; i < q; i++)
 			{
 				double baseOff = 0;
@@ -118,7 +122,12 @@ public class ItemBullet extends Item
 				this.cooldown = this.cooldownBase;
 
 				double off = baseOff + (Math.random() - 0.5) * Math.toRadians(this.accuracy);
-				m.fireBullet(b, speed, off);
+				m.fireBullet(b, speed * speedmul, off);
+
+				if (Game.currentLevel instanceof Minigame)
+				{
+					((Minigame) Game.currentLevel).onBulletFire(b);
+				}
 
 				while (this.fractionUsed >= 1 && !this.unlimitedStack)
 				{
