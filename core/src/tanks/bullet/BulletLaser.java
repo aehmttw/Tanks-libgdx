@@ -1,7 +1,5 @@
 package tanks.bullet;
 
-import tanks.Effect;
-import tanks.Game;
 import tanks.Movable;
 import tanks.hotbar.item.ItemBullet;
 import tanks.tank.Tank;
@@ -46,29 +44,5 @@ public class BulletLaser extends BulletInstant
 		this.playPopSound = true;
 		super.collidedWithObject(m);
 		this.playPopSound = false;
-	}
-
-	@Override
-	public void addDestroyEffect()
-	{
-		if (Game.effectsEnabled)
-		{
-			for (int i = 0; i < this.size * 4 * Game.effectMultiplier; i++)
-			{
-				Effect e = Effect.createNewEffect(this.posX, this.posY, this.posZ, Effect.EffectType.piece);
-				double var = 50;
-				e.maxAge /= 2;
-				e.colR = Math.min(255, Math.max(0, this.baseColorR + Math.random() * var - var / 2));
-				e.colG = Math.min(255, Math.max(0, this.baseColorG + Math.random() * var - var / 2));
-				e.colB = Math.min(255, Math.max(0, this.baseColorB + Math.random() * var - var / 2));
-
-				if (Game.enable3d)
-					e.set3dPolarMotion(Math.random() * 2 * Math.PI, Math.random() * Math.PI, Math.random() * this.size / 50.0 * 4);
-				else
-					e.setPolarMotion(Math.random() * 2 * Math.PI, Math.random() * this.size / 50.0 * 4);
-
-				Game.effects.add(e);
-			}
-		}
 	}
 }

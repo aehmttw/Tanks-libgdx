@@ -69,6 +69,8 @@ public class EventSendTankColors extends PersonalEvent
                         p.turretColorR = this.colorR2;
                         p.turretColorG = this.colorG2;
                         p.turretColorB = this.colorB2;
+
+                        Game.eventsOut.add(new EventUpdateTankColors(p));
                     }
                 }
             }

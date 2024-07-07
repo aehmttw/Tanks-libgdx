@@ -26,13 +26,23 @@ public class ScreenOptions extends Screen
 		this.musicID = "menu";
 
 		if (!Game.game.window.soundsEnabled)
+		{
 			soundOptions.enabled = false;
+			soundOptions.setHoverText("Sound is disabled because there---are no sound devices connected------To use sound, connect a sound---device and restart the game");
+			soundOptions.enableHover = true;
+		}
 	}
 
 	Button back = new Button(this.centerX, this.centerY + this.objYSpace * 3.5, this.objWidth, this.objHeight, "Back", () ->
 	{
 		saveOptions(Game.homedir);
-		Game.screen = new ScreenTitle();
+
+		if (ScreenPartyHost.isServer)
+			Game.screen = ScreenPartyHost.activeScreen;
+		else if (ScreenPartyLobby.isClient)
+			Game.screen = new ScreenPartyLobby();
+		else
+			Game.screen = new ScreenTitle();
 	}
 	);
 
@@ -51,7 +61,13 @@ public class ScreenOptions extends Screen
 			Game.screen = ScreenOverlayControls.lastControlsScreen;
 	});
 
-	Button personalize = new Button(this.centerX, this.centerY - this.objYSpace * 2.4, this.objWidth * 1.5, this.objHeight * 2, "", () -> Game.screen = new ScreenOptionsPersonalize());
+	Button personalize = new Button(this.centerX, this.centerY - this.objYSpace * 2.4, this.objWidth * 1.5, this.objHeight * 2, "", () ->
+	{
+		if (ScreenPartyHost.isServer || ScreenPartyLobby.isClient)
+			Game.screen = new ScreenOptionsPlayerColor();
+		else
+			Game.screen = new ScreenOptionsPersonalize();
+	});
 
 	Button interfaceOptions = new Button(this.centerX + this.objXSpace / 2, this.centerY + this.objYSpace * 0, this.objWidth, this.objHeight, "Window options", () -> Game.screen = new ScreenOptionsWindow());
 	Button interfaceOptionsMobile = new Button(this.centerX + this.objXSpace / 2, this.centerY + this.objYSpace * 0, this.objWidth, this.objHeight, "Interface options", () -> Game.screen = new ScreenOptionsWindowMobile());
@@ -103,22 +119,22 @@ public class ScreenOptions extends Screen
 
 		Drawing.drawing.setInterfaceFontSize(this.titleSize);
 		Drawing.drawing.setColor(0, 0, 0);
+		Drawing.drawing.displayInterfaceText(this.centerX, this.centerY - this.objYSpace * 3.5, "Options");
 
 		if (Game.game.window.fontRenderer.getStringSizeX(Drawing.drawing.fontSize, Game.player.username) / Drawing.drawing.interfaceScale > personalize.sizeX - 240)
 			Drawing.drawing.setInterfaceFontSize(this.titleSize * (personalize.sizeX - 240) / (Game.game.window.fontRenderer.getStringSizeX(Drawing.drawing.fontSize, Game.player.username) / Drawing.drawing.interfaceScale));
-
-		Drawing.drawing.displayInterfaceText(this.centerX, this.centerY - this.objYSpace * 3.5, "Options");
 
 		if (Game.player.colorR + Game.player.colorG + Game.player.colorB >= 380 && Game.player.username.length() >= 1)
 		{
 			Drawing.drawing.setColor(127, 127, 127);
 			double s = Game.game.window.fontRenderer.getStringSizeX(Drawing.drawing.fontSize, Game.player.username) / Drawing.drawing.interfaceScale;
-			Drawing.drawing.fillInterfaceRect(personalize.posX, personalize.posY + personalize.sizeY * 0.1, s, 40);
-			Drawing.drawing.fillInterfaceOval(personalize.posX - (s) / 2, personalize.posY + personalize.sizeY * 0.1, 40, 40);
-			Drawing.drawing.fillInterfaceOval(personalize.posX + (s) / 2, personalize.posY + personalize.sizeY * 0.1, 40, 40);
+			double z = this.objHeight / 40;
+			Drawing.drawing.fillInterfaceRect(personalize.posX, personalize.posY + personalize.sizeY * 0.1, s, z * 40);
+			Drawing.drawing.fillInterfaceOval(personalize.posX - (s) / 2, personalize.posY + personalize.sizeY * 0.1, z * 40, z * 40);
+			Drawing.drawing.fillInterfaceOval(personalize.posX + (s) / 2, personalize.posY + personalize.sizeY * 0.1, z * 40, z * 40);
 		}
 
-		preview.drawForInterface(personalize.posX - personalize.sizeX / 2 + personalize.sizeY * 0.7, personalize.posY, 1);
+		preview.drawForInterface(personalize.posX - personalize.sizeX / 2 + personalize.sizeY * 0.7, personalize.posY, objHeight / 40);
 
 		Drawing.drawing.setColor(Game.player.turretColorR, Game.player.turretColorG, Game.player.turretColorB);
 		Drawing.drawing.drawInterfaceText(personalize.posX + 2, personalize.posY + personalize.sizeY * 0.1 + 2, Game.player.username);
@@ -184,6 +200,7 @@ public class ScreenOptions extends Screen
 			f.println("perspective=" + ScreenOptionsGraphics.viewNo);
 			f.println("preview_crusades=" + Game.previewCrusades);
 			f.println("tank_textures=" + Game.tankTextures);
+			f.println("xray_bullets=" + Game.xrayBullets);
 			f.println("mouse_target=" + Panel.showMouseTarget);
 			f.println("mouse_target_height=" + Panel.showMouseTargetHeight);
 			f.println("constrain_mouse=" + Game.constrainMouse);
@@ -379,6 +396,9 @@ public class ScreenOptions extends Screen
 					case "tank_textures":
 						Game.tankTextures = Boolean.parseBoolean(optionLine[1]);
 						break;
+					case "xray_bullets":
+						Game.xrayBullets = Boolean.parseBoolean(optionLine[1]);
+						break;
 					case "preview_crusades":
 						Game.previewCrusades = Boolean.parseBoolean(optionLine[1]);
 						break;
@@ -460,12 +480,7 @@ public class ScreenOptions extends Screen
 			f.stopReading();
 
 			if (Game.framework == Game.Framework.libgdx)
-			{
-				Game.angledView = false;
 				Panel.showMouseTarget = false;
-				Game.vsync = true;
-				Game.previewCrusades = false;
-			}
 
 			if (!Game.soundsEnabled)
 				Game.soundVolume = 0;

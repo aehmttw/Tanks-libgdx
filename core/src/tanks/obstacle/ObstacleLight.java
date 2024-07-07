@@ -2,12 +2,18 @@ package tanks.obstacle;
 
 import tanks.Drawing;
 import tanks.Game;
+import tanks.IDrawableLightSource;
 
-public class ObstacleLight extends Obstacle
+public class ObstacleLight extends Obstacle implements IDrawableLightSource
 {
+	/** 7 values, first 3 are automatically set to coords, 4th is brightness, 5-7 are color*/
+	public double[] lightInfo;
+
 	public ObstacleLight(String name, double posX, double posY)
 	{
 		super(name, posX, posY);
+
+		this.lightInfo = new double[]{0, 0, 0, 0, 255, 250, 235};
 
 		this.draggable = false;
 		this.destructible = false;
@@ -38,15 +44,15 @@ public class ObstacleLight extends Obstacle
 		Drawing.drawing.setColor(this.colorR, this.colorG, this.colorB, this.colorA, this.glow);
 
 		if (Game.enable3d)
-			Drawing.drawing.fillBox(this, this.posX, this.posY, 0, Obstacle.draw_size / 2, Obstacle.draw_size / 2, Obstacle.draw_size / 2);
+			Drawing.drawing.fillBox(this.posX, this.posY, 0, Obstacle.draw_size / 2, Obstacle.draw_size / 2, Obstacle.draw_size / 2);
 		else
-			Drawing.drawing.fillRect(this, this.posX, this.posY, Obstacle.draw_size / 2, Obstacle.draw_size / 2);
+			Drawing.drawing.fillRect(this.posX, this.posY, Obstacle.draw_size / 2, Obstacle.draw_size / 2);
 
 		double frac = Obstacle.draw_size / Game.tile_size;
 		Drawing.drawing.setColor(this.colorR * frac, this.colorG * frac, this.colorB * frac, this.colorA, this.glow);
 
-		double s = this.stackHeight * Game.tile_size * 4;
-		Drawing.drawing.fillForcedGlow(this.posX, this.posY, 0, s * 3, s * 3, false, false, false, true);
+		//double s = this.stackHeight * Game.tile_size * 4;
+		//Drawing.drawing.fillForcedGlow(this.posX, this.posY, 0, s * 3, s * 3, false, false, false, true);
 
 	}
 
@@ -56,7 +62,9 @@ public class ObstacleLight extends Obstacle
 		double s = this.stackHeight * Game.tile_size * 4;
 		double frac = Obstacle.draw_size / Game.tile_size * 0.75;
 		Drawing.drawing.setColor(this.colorR * frac, this.colorG * frac, this.colorB * frac, this.colorA, this.glow);
-		Drawing.drawing.fillForcedGlow(this.posX, this.posY, 0, s, s, false, false, false, false);
+
+		if (!Game.fancyLights)
+			Drawing.drawing.fillForcedGlow(this.posX, this.posY, 0, s, s, false, false, false, false);
 	}
 
 	@Override
@@ -77,4 +85,16 @@ public class ObstacleLight extends Obstacle
 		return 0;
 	}
 
+	@Override
+	public boolean lit()
+	{
+		return Game.fancyLights;
+	}
+
+	@Override
+	public double[] getLightInfo()
+	{
+		this.lightInfo[3] = Math.pow(this.stackHeight, 2) * Obstacle.draw_size / Game.tile_size;
+		return this.lightInfo;
+	}
 }

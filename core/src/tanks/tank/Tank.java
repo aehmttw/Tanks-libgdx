@@ -4,23 +4,24 @@ import basewindow.Model;
 import basewindow.ModelPart;
 import tanks.*;
 import tanks.bullet.Bullet;
-import tanks.network.event.EventTankAddAttributeModifier;
-import tanks.network.event.EventTankUpdate;
-import tanks.network.event.EventTankUpdateHealth;
 import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.gui.screen.ScreenPartyLobby;
 import tanks.hotbar.item.ItemBullet;
 import tanks.hotbar.item.ItemMine;
+import tanks.network.event.EventTankAddAttributeModifier;
+import tanks.network.event.EventTankUpdate;
+import tanks.network.event.EventTankUpdateHealth;
 import tanks.obstacle.Face;
 import tanks.obstacle.ISolidObject;
 import tanks.obstacle.Obstacle;
-import static tanks.tank.TankProperty.Category.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+
+import static tanks.tank.TankProperty.Category.*;
 
 public abstract class Tank extends Movable implements ISolidObject
 {
@@ -182,8 +183,10 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public double hitboxSize = 0.95;
 
-	@TankProperty(category = general, id = "explode_on_destroy", name = "Explosive", desc="If set, the tank will explode when destroyed")
+	@TankProperty(category = general, id = "explode_on_destroy", name = "Explosive", desc="If set, the tank will explode when destroyed. The explosion will use the properties of the tank's mine.")
 	public boolean explodeOnDestroy = false;
+
+	public boolean droppedFromCrate = false;
 
 	/** Whether this tank needs to be destroyed before the level ends. */
 	@TankProperty(category = general, id = "mandatory_kill", name = "Must be destroyed", desc="Whether the tank needs to be destroyed to clear the level")
@@ -225,7 +228,7 @@ public abstract class Tank extends Movable implements ISolidObject
 		this.colorB = b;
 		turret = new Turret(this);
 		this.name = name;
-		this.nameTag = new NameTag(this, 0, this.size / 7 * 5, this.size / 2, this.name, r, g, b);
+		this.nameTag = new NameTag(this, 0, this.size / 7 * 5, this.size / 2, this.name);
 
 		this.drawLevel = 4;
 
@@ -293,7 +296,7 @@ public abstract class Tank extends Movable implements ISolidObject
 			if (m.skipNextUpdate)
 				continue;
 
-			if (this != m && m instanceof Tank && ((Tank)m).size > 0)
+			if (this != m && m instanceof Tank && ((Tank)m).size > 0 && !m.destroy)
 			{
 				Tank t = (Tank) m;
 				double distSq = Math.pow(this.posX - m.posX, 2) + Math.pow(this.posY - m.posY, 2);
@@ -555,22 +558,28 @@ public abstract class Tank extends Movable implements ISolidObject
 
 		super.update();
 
-		if (this.health <= 0)
-			this.destroy = true;
-
-		this.checkCollision();
-
-		this.orientation = (this.orientation + Math.PI * 2) % (Math.PI * 2);
-
-		if (!(Math.abs(this.posX - this.lastPosX) < 0.01 && Math.abs(this.posY - this.lastPosY) < 0.01) && !this.destroy && !ScreenGame.finished)
+		if (this.health <= 0.00000001)
 		{
-			double dist = Math.sqrt(Math.pow(this.posX - this.lastPosX, 2) + Math.pow(this.posY - this.lastPosY, 2));
+			this.destroy = true;
+			this.health = 0;
+		}
 
-			double dir = Math.PI + this.getAngleInDirection(this.lastPosX, this.lastPosY);
-			if (Movable.absoluteAngleBetween(this.orientation, dir) <= Movable.absoluteAngleBetween(this.orientation + Math.PI, dir))
-				this.orientation -= Movable.angleBetween(this.orientation, dir) / 20 * dist;
-			else
-				this.orientation -= Movable.angleBetween(this.orientation + Math.PI, dir) / 20 * dist;
+		if (this.managedMotion)
+		{
+			this.checkCollision();
+
+			this.orientation = (this.orientation + Math.PI * 2) % (Math.PI * 2);
+
+			if (!(Math.abs(this.posX - this.lastPosX) < 0.01 && Math.abs(this.posY - this.lastPosY) < 0.01) && !this.destroy && !ScreenGame.finished)
+			{
+				double dist = Math.sqrt(Math.pow(this.posX - this.lastPosX, 2) + Math.pow(this.posY - this.lastPosY, 2));
+
+				double dir = Math.PI + this.getAngleInDirection(this.lastPosX, this.lastPosY);
+				if (Movable.absoluteAngleBetween(this.orientation, dir) <= Movable.absoluteAngleBetween(this.orientation + Math.PI, dir))
+					this.orientation -= Movable.angleBetween(this.orientation, dir) / 20 * dist;
+				else
+					this.orientation -= Movable.angleBetween(this.orientation + Math.PI, dir) / 20 * dist;
+			}
 		}
 
 		if (!this.isRemote && this.standardUpdateEvent && ScreenPartyHost.isServer)
@@ -598,8 +607,7 @@ public abstract class Tank extends Movable implements ISolidObject
 
 		if (this.hasCollided)
 		{
-			this.tookRecoil = false;
-			this.inControlOfMotion = true;
+			this.recoilSpeed *= 0.5;
 		}
 
 		if (this.possessor != null)
@@ -608,7 +616,7 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public void drawTread()
 	{
-		double a = this.getPolarDirection();
+		double a = this.orientation;
 		Effect e1 = Effect.createNewEffect(this.posX, this.posY, Effect.EffectType.tread);
 		Effect e2 = Effect.createNewEffect(this.posX, this.posY, Effect.EffectType.tread);
 		e1.setPolarMotion(a - Math.PI / 2, this.size * 0.25);
@@ -625,6 +633,8 @@ public abstract class Tank extends Movable implements ISolidObject
 		e2.setPolarMotion(0, 0);
 		this.setEffectHeight(e1);
 		this.setEffectHeight(e2);
+		e1.firstDraw();
+		e2.firstDraw();
 		Game.tracks.add(e1);
 		Game.tracks.add(e2);
 	}
@@ -724,6 +734,7 @@ public abstract class Tank extends Movable implements ISolidObject
 				}
 			}
 		}
+
 
 		Drawing.drawing.setColor(teamColor[0], teamColor[1], teamColor[2], 255, luminance);
 
@@ -900,9 +911,9 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public void onDestroy()
 	{
-		if (this.explodeOnDestroy && this.age >= 250)
+		if (this.explodeOnDestroy && !(this.droppedFromCrate && this.age < 250))
 		{
-			Explosion e = new Explosion(this.posX, this.posY, Mine.mine_radius, 2, true, this);
+			Explosion e = new Explosion(this.posX, this.posY, this.mine.radius, this.mine.damage, this.mine.destroysObstacles, this);
 			e.explode();
 		}
 	}
@@ -949,7 +960,8 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public boolean damage(double amount, IGameObject source)
 	{
-		this.health -= amount * this.getDamageMultiplier(source);
+		double finalAmount = amount * this.getDamageMultiplier(source);
+		this.health -= finalAmount;
 
 		if (this.health <= 1)
 		{
@@ -975,7 +987,10 @@ public abstract class Tank extends Movable implements ISolidObject
 			owner = (Tank) source;
 
 		if (this.health > 0)
-			this.flashAnimation = 1;
+		{
+			if (finalAmount > 0)
+				this.flashAnimation = 1;
+		}
 		else
 			this.destroy = true;
 
@@ -1111,7 +1126,7 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public double getAutoZoom()
 	{
-		double dist = Math.min(3, Math.max(1, getAutoZoomRaw()));
+		double dist = Math.min(4, Math.max(1, getAutoZoomRaw()));
 		return 1 / dist;
 	}
 
@@ -1197,5 +1212,26 @@ public abstract class Tank extends Movable implements ISolidObject
 			else
 				Drawing.drawing.fillOval(x + v, y + v1, s * dotSize, s * dotSize);
 		}
+	}
+
+	public static void drawTank(double x, double y, double r1, double g1, double b1, double r2, double g2, double b2)
+	{
+		drawTank(x, y, r1, g1, b1, r2, g2, b2, Game.tile_size / 2);
+	}
+
+	public static void drawTank(double x, double y, double r1, double g1, double b1, double r2, double g2, double b2, double size)
+	{
+		Drawing.drawing.setColor(r2, g2, b2);
+		Drawing.drawing.drawInterfaceModel(TankModels.tank.base, x, y, size, size, 0);
+
+		Drawing.drawing.setColor(r1, g1, b1);
+		Drawing.drawing.drawInterfaceModel(TankModels.tank.color, x, y, size, size, 0);
+
+		Drawing.drawing.setColor(r2, g2, b2);
+
+		Drawing.drawing.drawInterfaceModel(TankModels.tank.turret, x, y, size, size, 0);
+
+		Drawing.drawing.setColor((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2);
+		Drawing.drawing.drawInterfaceModel(TankModels.tank.turretBase, x, y, size, size, 0);
 	}
 }

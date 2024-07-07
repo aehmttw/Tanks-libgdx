@@ -94,12 +94,12 @@ public class ScreenOptionsGraphics extends Screen
         else
             antialiasing.setText(antialiasingText, ScreenOptions.onText);
 
-        if (Game.framework == Game.Framework.libgdx)
-        {
-            altPerspective.enabled = false;
-            shadows.enabled = false;
-            maxFPS.enabled = false;
-        }
+//        if (Game.framework == Game.Framework.libgdx)
+//        {
+//            altPerspective.enabled = false;
+//            shadows.enabled = false;
+//            maxFPS.enabled = false;
+//        }
 
         if (!Game.game.window.antialiasingSupported)
         {
@@ -107,8 +107,8 @@ public class ScreenOptionsGraphics extends Screen
             antialiasing.enabled = false;
         }
 
-        if (Game.framework == Game.Framework.libgdx)
-            Game.shadowsEnabled = false;
+//        if (Game.framework == Game.Framework.libgdx)
+//            Game.shadowsEnabled = false;
 
         if (!Game.shadowsEnabled)
             shadows.setText("Shadows: ", ScreenOptions.offText);
@@ -189,8 +189,8 @@ public class ScreenOptionsGraphics extends Screen
 
             update3dGroundButton();
 
+            Drawing.drawing.terrainRenderer.reset();
             Game.resetTiles();
-            Drawing.drawing.forceRedrawTerrain();
         }
     },
             "Fancy terrain enables varied block---and ground colors------May impact performance on larger levels");
@@ -251,8 +251,8 @@ public class ScreenOptionsGraphics extends Screen
 
             update3dGroundButton();
 
+            Drawing.drawing.terrainRenderer.reset();
             Game.resetTiles();
-            Drawing.drawing.forceRedrawTerrain();
         }
     },
             "3D graphics may impact performance");
@@ -269,8 +269,8 @@ public class ScreenOptionsGraphics extends Screen
             else
                 ground3d.setText(ground3dText, ScreenOptions.offText);
 
+            Drawing.drawing.terrainRenderer.reset();
             Game.resetTiles();
-            Drawing.drawing.forceRedrawTerrain();
         }
     },
             "Enabling 3D ground may impact---performance in large levels");

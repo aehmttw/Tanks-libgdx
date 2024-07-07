@@ -1,26 +1,29 @@
 package libgdxwindow;
 
 import basewindow.*;
+import basewindow.transformation.*;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.glutils.ImmediateModeRenderer20;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.BufferUtils;
 import tanks.Game;
-import tanks.Team;
-import tanks.gui.TextBox;
 import theopalgames.tanks.Tanks;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.Buffer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Stack;
 
 import static com.badlogic.gdx.Input.Keys.*;
+import static com.badlogic.gdx.graphics.GL20.*;
 
 public class LibGDXWindow extends BaseWindow
 {
@@ -28,22 +31,28 @@ public class LibGDXWindow extends BaseWindow
 
     public boolean previousKeyboard = false;
 
-    public ImmediateModeRenderer20 renderer;
-    public SpriteBatch spriteBatch;
+    public LibGDXImmediateModeRenderer renderer;
 
-    public ImmediateModeRenderer20 notexRenderer;
-    public ImmediateModeRenderer20 texRenderer;
+    public LibGDXImmediateModeRenderer notexRenderer;
+    public LibGDXImmediateModeRenderer texRenderer;
 
     public static final HashMap<Integer, Integer> key_translations = new HashMap<>();
 
     public HashMap<String, Texture> textures = new HashMap<>();
 
-    public float color;
-    public float transparent = Color.toFloatBits(0, 0, 0, 0);
+    public Color color = new Color();
+    public Color transparent = new Color(0, 0, 0, 0);
+    public double colorGlow = 0;
 
-    public Matrix4 perspective = new Matrix4();
+    public Stack<Matrix4> projectionHistory = new Stack<Matrix4>();
+    public Matrix4 projectionMatrix = new Matrix4();
 
-    public ArrayList<Integer> rawTextInput = new ArrayList<Integer>();
+    public Stack<Matrix4> modelviewHistory = new Stack<Matrix4>();
+    public Matrix4 modelviewMatrix = new Matrix4();
+
+    public boolean modelviewMode;
+
+    public ArrayList<Character> rawTextInput = new ArrayList<>();
 
     protected int currentDrawMode = -1;
     protected boolean depthTest = false;
@@ -56,18 +65,34 @@ public class LibGDXWindow extends BaseWindow
     public boolean quadMode = false;
     public int quadNum = 0;
 
-    public float col1;
+    public LibGDXShaderHandler shaderHandler;
+
+    public Color col1;
     public float qx1;
     public float qy1;
     public float qz1;
 
-    public float col3;
+    public Color col3;
     public float qx3;
     public float qy3;
     public float qz3;
 
     public float[] matrix = new float[16];
     public Matrix4 matrix2 = new Matrix4();
+
+    double bbx1 = 1;
+    double bby1 = 0;
+    double bbz1 = 0;
+    double bbx2 = 0;
+    double bby2 = 1;
+    double bbz2 = 0;
+    double bbx3 = 0;
+    double bby3 = 0;
+    double bbz3 = 1;
+
+    protected float[] transformedMouse = new float[2];
+
+    public boolean shadowsEnabled = false;
 
     protected boolean batchMode = false;
 
@@ -76,32 +101,42 @@ public class LibGDXWindow extends BaseWindow
         super(name, x, y, z, u, d, w, vsync, showMouse);
     }
 
+    protected void setUpShaders()
+    {
+        try
+        {
+            this.shaderDefault = new ShaderGroup(this, "default");
+            this.shaderDefault.initialize();
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+            System.exit(0);
+        }
+    }
+
     public void initialize()
     {
+        setUpShaders();
         setupKeyMap();
 
         this.shapeRenderer = new LibGDXShapeRenderer(this);
         this.shapeDrawer = new ImmediateModeModelPart.ImmediateModeShapeDrawer(this);
+        this.shaderHandler = new LibGDXShaderHandler(this);
 
-        perspective.idt().setToProjection(
-                (float)(-absoluteWidth / (absoluteDepth * 2.0)),
-                (float)(absoluteWidth / (absoluteDepth * 2.0)),
-                (float) (absoluteHeight / (absoluteDepth * 2.0)),
-                (float)(-absoluteHeight / (absoluteDepth * 2.0)),
-                1, (float) (absoluteDepth * 2));
-        perspective.translate((float) -(absoluteWidth / 2), (float) (-absoluteHeight / 2), (float) -absoluteDepth);
+        this.loadPerspective();
 
-        notexRenderer = new ImmediateModeRenderer20(maxVertices, false, true, 0);
-        texRenderer = new ImmediateModeRenderer20(maxVertices, false, true, 1);
+        modelviewMatrix.idt();
+
+        notexRenderer = new LibGDXImmediateModeRenderer(this, maxVertices, false, true, 0);
+        texRenderer = new LibGDXImmediateModeRenderer(this, maxVertices, false, true, 1);
 
         renderer = notexRenderer;
 
-        spriteBatch = new SpriteBatch();
-        spriteBatch.setProjectionMatrix(this.perspective);
         fontRenderer = new LibGDXFontRenderer(this, "font.png");
 
         this.soundsEnabled = true;
-        this.soundPlayer = new LibGDXSoundPlayer();
+        this.soundPlayer = new LibGDXSoundPlayer(this);
 
         this.antialiasingSupported = true;
 
@@ -110,7 +145,8 @@ public class LibGDXWindow extends BaseWindow
             @Override
             public boolean touchDown(int x, int y, int pointer, int button)
             {
-                touchPoints.put(pointer, new InputPoint(x, y + absoluteHeight * keyboardOffset));
+                InputPoint ip = new InputPoint(x, y + absoluteHeight * keyboardOffset);
+                touchPoints.put(pointer, ip);
                 absoluteMouseX = x;
                 absoluteMouseY = y + absoluteHeight * keyboardOffset;
                 pressedButtons.add(button);
@@ -162,7 +198,7 @@ public class LibGDXWindow extends BaseWindow
             @Override
             public boolean keyTyped(char keyCode)
             {
-                rawTextInput.add((int) keyCode);
+                rawTextInput.add(keyCode);
                 return true;
             }
 
@@ -183,6 +219,57 @@ public class LibGDXWindow extends BaseWindow
                 return true;
             }
         });
+    }
+
+    public float[] getTransformedMouse()
+    {
+        return getTransformedMouse(absoluteMouseX, absoluteMouseY);
+    }
+
+    public float[] getTransformedMouse(double x, double y)
+    {
+        x -= absoluteWidth / 2;
+        y -= absoluteHeight / 2;
+        float z = (float) -absoluteDepth;
+
+        Matrix4 m = new Matrix4().idt();
+        for (int i = 0; i < this.transformations.size(); i++)
+        {
+            Transformation t = this.transformations.get(i);
+            if (t instanceof Rotation)
+            {
+                Rotation r = (Rotation) t;
+                m.rotateRad(new Vector3(0, 1, 0), (float) r.yaw);
+                m.rotateRad(new Vector3(1, 0, 0), (float) r.pitch);
+                m.rotateRad(new Vector3(0, 0, 1), (float) r.roll);
+            }
+            else if (t instanceof RotationAboutPoint)
+            {
+                RotationAboutPoint r = (RotationAboutPoint) t;
+                m.translate((float) (r.x * absoluteWidth), (float) (r.y * absoluteHeight), (float) (r.z * absoluteDepth));
+                m.rotateRad(new Vector3(0, 1, 0), (float) r.yaw);
+                m.rotateRad(new Vector3(1, 0, 0), (float) r.pitch);
+                m.rotateRad(new Vector3(0, 0, 1), (float) r.roll);
+                m.translate((float) (-r.x * absoluteWidth), (float) (-r.y * absoluteHeight), (float) (-r.z * absoluteDepth));
+            }
+            else if (t instanceof Scale)
+            {
+                Scale s = (Scale) t;
+                m.scale((float) (1 / s.x), (float) (1 / s.y), (float) (1 / s.z));
+            }
+            else if (t instanceof Translation)
+            {
+                Translation r = (Translation) t;
+                m.translate((float) (-r.x * absoluteWidth), (float) (-r.y * absoluteHeight), (float) (-r.z * absoluteDepth));
+            }
+        }
+
+        Matrix4 v = new Matrix4(new float[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (float) x, (float) y, z, 1});
+        m.mul(v);
+        transformedMouse[0] = (float) ((m.val[12] / (-m.val[14] / absoluteDepth) + absoluteWidth / 2));
+        transformedMouse[1] = (float) ((m.val[13] / (-m.val[14] / absoluteDepth) + absoluteHeight / 2));
+
+        return transformedMouse;
     }
 
     public void setupKeyMap()
@@ -270,19 +357,26 @@ public class LibGDXWindow extends BaseWindow
 
     public void updatePerspective()
     {
-        perspective.idt().setToProjection(
-                (float)(-absoluteWidth / (absoluteDepth * 2.0)),
-                (float)(absoluteWidth / (absoluteDepth * 2.0)),
-                (float) (absoluteHeight / (absoluteDepth * 2.0)),
-                (float)(-absoluteHeight / (absoluteDepth * 2.0)),
-                1, (float) (absoluteDepth * 2));
-        perspective.translate((float) -(absoluteWidth / 2), (float) (-absoluteHeight / 2), (float) -absoluteDepth);
-        perspective.translate(0, (float) -(keyboardOffset * absoluteHeight), 0);
+        double m = clipMultiplier;
+
+        if (drawingShadow)
+            projectionMatrix.setToOrtho(
+                    (float) 0,
+                    (float) absoluteWidth,
+                    (float) absoluteHeight,
+                    (float) 0,
+                    (float) -absoluteDepth,
+                    (float) absoluteDepth);
+        else
+            projectionMatrix.idt().setToProjection(
+                    (float)(-absoluteWidth / (absoluteDepth * 2.0) * m),
+                    (float)(absoluteWidth / (absoluteDepth * 2.0) * m),
+                    (float) (absoluteHeight / (absoluteDepth * 2.0) * m),
+                    (float)(-absoluteHeight / (absoluteDepth * 2.0) * m),
+                    (float) m, (float) (absoluteDepth * m * clipDistMultiplier));
 
         if (!this.showKeyboard && this.keyboardOffset > 0)
             this.keyboardOffset = Math.max(0, this.keyboardOffset * Math.pow(0.98, frameFrequency) - 0.015 * frameFrequency);
-
-        spriteBatch.setProjectionMatrix(this.perspective);
     }
 
     @Override
@@ -303,11 +397,16 @@ public class LibGDXWindow extends BaseWindow
 
     public void setDrawMode(int mode, boolean depthTest, boolean depthMask, boolean glow, boolean light, int vertices)
     {
-        if (this.currentVertices + vertices > maxVertices || this.currentDrawMode != mode || this.depthTest != depthTest || this.depthMask != depthMask || this.glow != glow || this.light != light)
+        this.setDrawMode(mode, depthTest, depthMask, glow, light, vertices, this.colorGlow);
+    }
+
+    public void setDrawMode(int mode, boolean depthTest, boolean depthMask, boolean glow, boolean light, int vertices, double colorGlow)
+    {
+        if (this.currentVertices + vertices > maxVertices || this.currentDrawMode != mode || this.depthTest != depthTest || this.depthMask != depthMask || this.glow != glow || this.light != light || this.colorGlow != colorGlow)
         {
             this.currentVertices = 0;
 
-            if (this.currentDrawMode != 7)
+            if (this.currentDrawMode >= 0)
                 this.renderer.end();
 
             this.light = light;
@@ -316,21 +415,26 @@ public class LibGDXWindow extends BaseWindow
             this.depthTest = depthTest;
             this.depthMask = depthMask;
 
-            if (mode == -1)
+            this.colorGlow = colorGlow;
+
+            if (drawingShadow && (!depthMask || !depthTest || glow || light))
                 return;
 
-            if (depthTest)
+            if (this.currentShader != null)
             {
-                Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
-                //Gdx.gl.glDepthMask(false);
-                //Gdx.gl.glDepthFunc(depthFunc);
-                Gdx.gl.glDepthFunc(GL20.GL_LESS);
-            }
-            else
-            {
-                Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
-                //Gdx.gl.glDepthMask(true);
-                Gdx.gl.glDepthFunc(GL20.GL_ALWAYS);
+                if (!drawingShadow)
+                    this.currentShader.group.shaderBase.glow.set((float) colorGlow);
+
+                if (depthTest)
+                {
+                    enableDepthtest();
+                    Gdx.gl.glDepthFunc(GL_LEQUAL);
+                }
+                else
+                {
+                    disableDepthtest();
+                    Gdx.gl.glDepthFunc(GL20.GL_ALWAYS);
+                }
             }
 
             Gdx.gl.glEnable(GL20.GL_BLEND);
@@ -344,8 +448,8 @@ public class LibGDXWindow extends BaseWindow
 
             Gdx.gl.glDepthMask(depthMask);
 
-            if (mode != 7)
-                this.renderer.begin(this.perspective, mode);
+            if (mode >= 0)
+                this.renderer.begin(this.projectionMatrix, mode);
         }
 
         this.currentVertices += vertices;
@@ -355,38 +459,7 @@ public class LibGDXWindow extends BaseWindow
     {
         this.startTiming();
 
-        this.updatePerspective();
-
-        LibGDXSoundPlayer soundPlayer = (LibGDXSoundPlayer) this.soundPlayer;
-
-        soundPlayer.musicPlaying = soundPlayer.currentMusic != null && soundPlayer.currentMusic.isPlaying();
-
-        if (soundPlayer.prevMusic != null && soundPlayer.fadeEnd < System.currentTimeMillis())
-        {
-            if (soundPlayer.prevMusicStoppable && (soundPlayer.musicID == null || !soundPlayer.musicID.equals(soundPlayer.prevMusicID)))
-                soundPlayer.prevMusic.stop();
-            else if (soundPlayer.prevMusicStoppable)
-                soundPlayer.prevMusic.setVolume(0);
-
-            soundPlayer.prevMusic = null;
-
-            if (soundPlayer.currentMusic != null)
-                soundPlayer.currentMusic.setVolume(soundPlayer.currentVolume);
-        }
-
-        if (soundPlayer.prevMusic != null && soundPlayer.currentMusic != null)
-        {
-            double frac = (System.currentTimeMillis() - soundPlayer.fadeBegin) * 1.0 / (soundPlayer.fadeEnd - soundPlayer.fadeBegin);
-
-            if (soundPlayer.prevMusicStoppable)
-                soundPlayer.prevMusic.setVolume((float) (soundPlayer.prevVolume * (1 - frac)));
-
-            soundPlayer.currentMusic.setVolume((float) (soundPlayer.currentVolume * frac));
-        }
-
-		/*Gdx.gl.glClearColor(0f, 0f, 0f, 0f);
-		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-		Gdx.gl.glClear(GL20.GL_DEPTH_BUFFER_BIT);*/
+        this.soundPlayer.update();
 
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT | (Gdx.graphics.getBufferFormat().coverageSampling?GL20.GL_COVERAGE_BUFFER_BIT_NV:0));
 
@@ -404,9 +477,10 @@ public class LibGDXWindow extends BaseWindow
 
         this.updater.update();
 
-        this.drawer.draw();
+        if (shadowsEnabled)
+            this.shaderHandler.renderShadowMap();
 
-        this.setDrawMode(-1, false, true, 0);
+        this.shaderHandler.renderNormal();
 
         if (Gdx.app.getType() == Application.ApplicationType.Android)
         {
@@ -468,6 +542,16 @@ public class LibGDXWindow extends BaseWindow
         this.yOffset = 0;
         this.zOffset = 0;
 
+        this.bbx1 = 1;
+        this.bby1 = 0;
+        this.bbz1 = 0;
+        this.bbx2 = 0;
+        this.bby2 = 1;
+        this.bbz2 = 0;
+        this.bbx3 = 0;
+        this.bby3 = 0;
+        this.bbz3 = 1;
+
         this.updatePerspective();
     }
 
@@ -478,29 +562,49 @@ public class LibGDXWindow extends BaseWindow
         {
             this.transformations.get(i).apply();
         }
+    }
 
-        spriteBatch.setProjectionMatrix(this.perspective);
+    public void applyShadowTransformations()
+    {
+        for (int i = this.transformations.size() - 1; i >= 0; i--)
+        {
+            Transformation t = this.transformations.get(i);
+
+            if (t.applyAsShadow)
+                t.apply();
+            else
+                t.applyToWindow();
+        }
     }
 
     @Override
     public void loadPerspective()
     {
+        this.setDrawMode(-1, false, false, 0);
         setUpPerspective();
-        applyTransformations();
-        //this.baseTransformation.apply();
+
+        if (this.drawingShadow)
+        {
+            applyShadowTransformations();
+
+            for (Transformation t: this.lightBaseTransformation)
+                t.apply();
+        }
+        else
+        {
+            applyTransformations();
+
+            for (Transformation t: this.baseTransformations)
+                t.apply();
+
+            projectionMatrix.translate(0, (float) -(keyboardOffset * absoluteHeight), 0);
+        }
     }
 
     @Override
     public void clearDepth()
     {
         Gdx.gl.glClear(GL20.GL_DEPTH_BUFFER_BIT);
-    }
-
-    public void rotate(double x, double y, double rotation)
-    {
-        spriteBatch.getProjectionMatrix().translate((float) x, (float) y, 0);
-        spriteBatch.getProjectionMatrix().rotateRad((float) 0, (float) 0, 1, (float) rotation);
-        spriteBatch.getProjectionMatrix().translate((float) -x, (float) -y, 0);
     }
 
     @Override
@@ -527,7 +631,7 @@ public class LibGDXWindow extends BaseWindow
     }
 
     @Override
-    public ArrayList<Integer> getRawTextKeys()
+    public ArrayList<Character> getRawTextKeys()
     {
         return rawTextInput;
     }
@@ -564,19 +668,42 @@ public class LibGDXWindow extends BaseWindow
     @Override
     public void transform(double[] matrix)
     {
+        setDrawMode(-1, this.depthTest, this.depthMask, this.glow, 0);
+
         for (int i = 0; i < matrix.length; i++)
         {
             this.matrix[i] = (float) matrix[i];
         }
 
         this.matrix2.set(this.matrix);
-        perspective.mul(this.matrix2);
+
+        if (this.modelviewMode)
+            modelviewMatrix.mul(this.matrix2);
+        else
+            projectionMatrix.mul(this.matrix2);
     }
 
     @Override
     public void calculateBillboard()
     {
+        angled = !(yaw == 0 && pitch == 0 && roll == 0);
 
+        double a = Math.cos(-roll);
+        double b = Math.sin(-roll);
+        double c = Math.cos(-pitch);
+        double d = Math.sin(-pitch);
+        double e = Math.cos(-yaw);
+        double f = Math.sin(-yaw);
+
+        bbx1 = e * a - b * d * f;
+        bby1 = -a * d * f - e * b;
+        bbz1 = -c * f;
+        bbx2 = b * c;
+        bby2 = a * c;
+        bbz2 = -d;
+        bbx3 = a * f + e * b * d;
+        bby3 = e * a * d - b * f;
+        bbz3 = e * c;
     }
 
     @Override
@@ -585,16 +712,68 @@ public class LibGDXWindow extends BaseWindow
         return Math.max(absoluteWidth - absoluteHeight * 18 / 9, 0) / 2;
     }
 
+    public int createVBO()
+    {
+        return Gdx.gl.glGenBuffer();
+    }
+
+    public void freeVBO(int i)
+    {
+        Gdx.gl.glDeleteBuffer(i);
+    }
+
+    public void vertexBufferData(int id, Buffer buffer)
+    {
+        Gdx.gl.glBindBuffer(GL20.GL_ARRAY_BUFFER, id);
+        int size = buffer.remaining() << 2;
+
+        Gdx.gl.glBufferData(GL20.GL_ARRAY_BUFFER, size, buffer, GL_STATIC_DRAW);
+    }
+
+    public void vertexBufferDataDynamic(int id, Buffer buffer)
+    {
+        Gdx.gl.glBindBuffer(GL20.GL_ARRAY_BUFFER, id);
+        int size = buffer.remaining() << 2;
+
+        Gdx.gl.glBufferData(GL20.GL_ARRAY_BUFFER, size, buffer, GL_DYNAMIC_DRAW);
+    }
+
+    public void vertexBufferSubData(int id, int off, Buffer b)
+    {
+        Gdx.gl.glBindBuffer(GL20.GL_ARRAY_BUFFER, id);
+        int size = b.remaining() << 2;
+
+        Gdx.gl.glBufferSubData(GL_ARRAY_BUFFER, off, size, b);
+    }
+
+    public void vertexBufferSubData(int id, int off, int size)
+    {
+        Buffer b = BufferUtils.newFloatBuffer(size);
+        Gdx.gl.glBindBuffer(GL20.GL_ARRAY_BUFFER, id);
+        int s = b.remaining() << 2;
+        Gdx.gl.glBufferSubData(GL_ARRAY_BUFFER, off, s, b);
+    }
+
+
     @Override
     public void createImage(String image, InputStream in)
     {
 
     }
 
+    @Override
+    public void setUpscaleImages(boolean upscaleImages)
+    {
+
+    }
+
     public void setBatchMode(boolean enabled, boolean quads, boolean depth)
     {
+        if (quadNum != 0)
+            Game.exitToCrash(new RuntimeException("quad num invalid " + quadNum));
+
         this.batchMode = enabled;
-        this.setDrawMode(GL20.GL_TRIANGLES, depth, this.colorA >= 1, 1000);
+        this.setDrawMode(enabled ? GL20.GL_TRIANGLES : -1, depth, this.colorA >= 1, 1000);
         if (quads)
         {
             quadMode = true;
@@ -606,8 +785,11 @@ public class LibGDXWindow extends BaseWindow
 
     public void setBatchMode(boolean enabled, boolean quads, boolean depth, boolean glow)
     {
+//        if (quadNum != 0)
+//            Game.exitToCrash(new RuntimeException("quad num invalid " + quadNum));
+
         this.batchMode = enabled;
-        this.setDrawMode(GL20.GL_TRIANGLES, depth, this.colorA >= 1 && !glow, glow,1000);
+        this.setDrawMode(enabled ? GL20.GL_TRIANGLES : -1, depth, this.colorA >= 1 && !glow, glow,1000);
         if (quads)
         {
             quadMode = true;
@@ -619,8 +801,11 @@ public class LibGDXWindow extends BaseWindow
 
     public void setBatchMode(boolean enabled, boolean quads, boolean depth, boolean glow, boolean depthMask)
     {
+//        if (quadNum != 0)
+//            Game.exitToCrash(new RuntimeException("quad num invalid " + quadNum));
+
         this.batchMode = enabled;
-        this.setDrawMode(GL20.GL_TRIANGLES, depth, depthMask, glow,1000);
+        this.setDrawMode(enabled ? GL20.GL_TRIANGLES : -1, depth, depthMask, glow,1000);
         if (quads)
         {
             quadMode = true;
@@ -653,7 +838,8 @@ public class LibGDXWindow extends BaseWindow
         if (t != null)
         {
             this.renderer = texRenderer;
-            this.renderer.begin(this.perspective, GL20.GL_TRIANGLES);
+            this.enableTexture();
+            this.renderer.begin(this.projectionMatrix, GL20.GL_TRIANGLES);
             t.bind();
         }
     }
@@ -661,14 +847,17 @@ public class LibGDXWindow extends BaseWindow
     @Override
     public void stopTexture()
     {
-        this.renderer.end();
-        Gdx.gl.glDisable(GL20.GL_TEXTURE_2D);
+        Gdx.gl.glDisable(GL_TEXTURE_2D);
         this.renderer = notexRenderer;
+        this.disableTexture();
     }
 
     @Override
     public void addVertex(double x, double y, double z)
     {
+//        if (!batchMode)
+//            Game.exitToCrash(new RuntimeException("not batching!"));
+
         if (quadMode)
         {
             if (quadNum == 0)
@@ -676,14 +865,21 @@ public class LibGDXWindow extends BaseWindow
                 qx1 = (float) x;
                 qy1 = (float) y;
                 qz1 = (float) z;
-                col1 = color;
+                //renderer.color(new Color(1, 0, 0, 1));
+                col1 = color.cpy(); //new Color(0, 1, 1, 1).toFloatBits();
             }
+            /*else if (quadNum == 1)
+            {
+                renderer.color(new Color(1, 1, 0, 1));
+            }*/
             else if (quadNum == 2)
             {
                 qx3 = (float) x;
                 qy3 = (float) y;
                 qz3 = (float) z;
-                col3 = color;
+                //renderer.color(new Color(0, 1, 0, 1));
+                //col3 = new Color(0, 0, 1, 1).toFloatBits();//color;
+                col3 = color.cpy();
             }
             else if (quadNum == 3)
             {
@@ -691,17 +887,25 @@ public class LibGDXWindow extends BaseWindow
                 renderer.vertex(qx1, qy1, qz1);
                 renderer.color(col3);
                 renderer.vertex(qx3, qy3, qz3);
+                //renderer.color(new Color(1, 0, 1, 1));
             }
             quadNum = (quadNum + 1) % 4;
         }
+        /*else
+        {
+            quadNum = (quadNum + 1) % 3;
+        }*/
 
         renderer.color(color);
-        renderer.vertex((float) x, (float) y, (float) z);
+        renderer.vertex((float) x, (float) y,  (float) z);
     }
 
     @Override
     public void addVertex(double x, double y)
     {
+//        if (!batchMode)
+//            Game.exitToCrash(new RuntimeException("not batching!"));
+
         if (quadMode)
         {
             if (quadNum == 0)
@@ -709,14 +913,21 @@ public class LibGDXWindow extends BaseWindow
                 qx1 = (float) x;
                 qy1 = (float) y;
                 qz1 = (float) 0;
-                col1 = color;
+                //renderer.color(new Color(1, 0, 0, 1));
+                col1 = color.cpy(); //new Color(0, 1, 1, 1).toFloatBits();
             }
+            /*else if (quadNum == 1)
+            {
+                renderer.color(new Color(1, 1, 0, 1));
+            }*/
             else if (quadNum == 2)
             {
                 qx3 = (float) x;
                 qy3 = (float) y;
                 qz3 = (float) 0;
-                col3 = color;
+                //renderer.color(new Color(0, 1, 0, 1));
+                //col3 = new Color(0, 0, 1, 1).toFloatBits();//color;
+                col3 = color.cpy();
             }
             else if (quadNum == 3)
             {
@@ -724,12 +935,17 @@ public class LibGDXWindow extends BaseWindow
                 renderer.vertex(qx1, qy1, qz1);
                 renderer.color(col3);
                 renderer.vertex(qx3, qy3, qz3);
+                //renderer.color(new Color(1, 0, 1, 1));
             }
             quadNum = (quadNum + 1) % 4;
         }
+        /*else
+        {
+            quadNum = (quadNum + 1) % 3;
+        }*/
 
         renderer.color(color);
-        renderer.vertex((float) x, (float) y, 0);
+        renderer.vertex((float) x, (float) y,  (float) 0);
     }
 
     @Override
@@ -750,17 +966,64 @@ public class LibGDXWindow extends BaseWindow
     @Override
     public void setShadowQuality(double quality)
     {
-
+        if (quality <= 0)
+        {
+            this.shaderHandler.quality = 1;
+            this.shadowsEnabled = false;
+        }
+        else
+        {
+            this.shaderHandler.quality = quality;
+            this.shadowsEnabled = true;
+        }
     }
 
     @Override
     public double getShadowQuality()
     {
-        return 0;
+        if (!this.shadowsEnabled)
+            return 0;
+        else
+            return this.shaderHandler.quality;
     }
 
     @Override
     public void setLighting(double light, double glowLight, double shadow, double glowShadow)
+    {
+        setDrawMode(-1, this.depthTest, this.depthMask, this.glow, 0);
+
+        this.currentShaderGroup.shaderBase.light.set((float) light);
+        this.currentShaderGroup.shaderBase.glowLight.set((float) glowLight);
+        this.currentShaderGroup.shaderBase.shade.set((float) shadow);
+        this.currentShaderGroup.shaderBase.glowShade.set((float) glowShadow);
+    }
+
+    @Override
+    public void setMaterialLights(float[] ambient, float[] diffuse, float[] specular, double shininess)
+    {
+
+    }
+
+    @Override
+    public void setMaterialLights(float[] ambient, float[] diffuse, float[] specular, double shininess, double minBound, double maxBound, boolean enableNegative)
+    {
+
+    }
+
+    @Override
+    public void disableMaterialLights()
+    {
+
+    }
+
+    @Override
+    public void setCelShadingSections(float sections)
+    {
+
+    }
+
+    @Override
+    public void createLights(ArrayList<double[]> lights, double scale)
     {
 
     }
@@ -768,25 +1031,39 @@ public class LibGDXWindow extends BaseWindow
     @Override
     public void addMatrix()
     {
+        setDrawMode(-1, this.depthTest, this.depthMask, this.glow, 0);
 
+        if (this.modelviewMode)
+            modelviewHistory.add(modelviewMatrix.cpy());
+        else
+            projectionHistory.add(projectionMatrix.cpy());
     }
 
     @Override
     public void removeMatrix()
     {
+        setDrawMode(-1, this.depthTest, this.depthMask, this.glow, 0);
 
+        if (this.modelviewMode)
+            modelviewMatrix.set(modelviewHistory.pop());
+        else
+            projectionMatrix.set(projectionHistory.pop());
     }
 
     @Override
     public void setMatrixProjection()
     {
+        setDrawMode(-1, this.depthTest, this.depthMask, this.glow, 0);
 
+        this.modelviewMode = false;
     }
 
     @Override
     public void setMatrixModelview()
     {
+        setDrawMode(-1, this.depthTest, this.depthMask, this.glow, 0);
 
+        this.modelviewMode = true;
     }
 
     @Override
@@ -798,7 +1075,7 @@ public class LibGDXWindow extends BaseWindow
     @Override
     public ModelPart createModelPart(Model model, ArrayList<ModelPart.Shape> shapes, Model.Material material)
     {
-        return new ImmediateModeModelPart(this, model, shapes, material);
+        return new VBOModelPart(this, model, shapes, material);
     }
 
     @Override
@@ -808,13 +1085,96 @@ public class LibGDXWindow extends BaseWindow
     }
 
     @Override
-    public BaseShapeBatchRenderer createShapeBatchRenderer()
+    public BaseShapeBatchRenderer createStaticBatchRenderer(ShaderGroup shader, boolean color, String texture, boolean normal, int vertices)
     {
-        return null;
+        return new LibGDXStaticBatchRenderer(this, shader);
     }
 
-    public void drawLinkedImage(double x, double y, double z, double sX, double sY, double u1, double v1, double u2, double v2, String image, boolean scaled, boolean depthtest)
+    @Override
+    public BaseShapeBatchRenderer createShapeBatchRenderer()
     {
+        return new LibGDXShapeBatchRenderer(this);
+    }
+
+    @Override
+    public BaseShapeBatchRenderer createShapeBatchRenderer(ShaderGroup shader)
+    {
+        return new LibGDXShapeBatchRenderer(this, shader);
+    }
+
+    @Override
+    public BaseShaderUtil getShaderUtil(ShaderProgram p)
+    {
+        return new LibGDXShaderUtil(this, p);
+    }
+
+    public void enableTexture()
+    {
+        if (!drawingShadow)
+            this.currentShaderGroup.shaderBase.texture.set(true);
+
+        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+    }
+
+    public void disableTexture()
+    {
+        if (!drawingShadow && this.currentShaderGroup != null)
+            this.currentShaderGroup.shaderBase.texture.set(false);
+
+        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE1);
+        this.shaderHandler.frameBuffer.getColorBufferTexture().bind(1);
+    }
+
+    public void enableDepthtest()
+    {
+        Gdx.gl.glEnable(GL_DEPTH_TEST);
+        Gdx.gl.glDepthFunc(GL_LEQUAL);
+
+        if (!drawingShadow)
+            this.currentShaderGroup.shaderBase.depthtest.set(true);
+    }
+
+    public void disableDepthtest()
+    {
+        Gdx.gl.glDisable(GL_DEPTH_TEST);
+        Gdx.gl.glDepthFunc(GL20.GL_ALWAYS);
+
+        if (!drawingShadow)
+            this.currentShaderGroup.shaderBase.depthtest.set(false);
+    }
+
+    public void enableDepthmask()
+    {
+        Gdx.gl.glDepthMask(true);
+    }
+
+    public void disableDepthmask()
+    {
+        Gdx.gl.glDepthMask(false);
+    }
+
+    public void setGlowBlendFunc()
+    {
+        Gdx.gl.glBlendFunc(GL_SRC_COLOR, GL_ONE);
+    }
+
+    public void setLightBlendFunc()
+    {
+        Gdx.gl.glBlendFunc(GL_DST_COLOR, GL_ONE);
+    }
+
+    public void setTransparentBlendFunc()
+    {
+        Gdx.gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+
+    public void beginLinkedImages(String image, boolean scaled, boolean depthtest)
+    {
+        this.setDrawMode(-1, depthtest, false, 0);
+
+        if (drawingShadow)
+            return;
+
         if (image.startsWith("/"))
             image = image.substring(1);
 
@@ -826,42 +1186,141 @@ public class LibGDXWindow extends BaseWindow
             textures.put(image, texture);
         }
 
-        double width = sX * (u2 - u1);
-        double height = sY * (v2 - v1);
+        this.setMatrixProjection();
+
+        //if (depthtest)
+        //    this.enableDepthtest();
+
+        //this.setUpPerspective();
+
+        this.setMatrixModelview();
+
+        this.enableTexture();
+
+        //Gdx.gl.glEnable(GL_BLEND);
+        //this.setTransparentBlendFunc();
+        //Gdx.gl.glDepthMask(false);
+
+        texture.bind();
 
         if (scaled)
         {
-            width *= texture.getWidth();
-            height *= texture.getHeight();
+            throw new RuntimeException("not supported");
         }
 
-        spriteBatch.setColor((float) this.colorR, (float) this.colorG, (float) this.colorB, (float) this.colorA);
-        spriteBatch.draw(texture, (float) x, (float) y, (float) width, (float) height, (float) u1, (float) v1, (float) u2, (float) v2);
+        this.texRenderer.begin(this.projectionMatrix, Gdx.gl.GL_TRIANGLES);
+    }
+
+    public void drawLinkedImage(double x, double y, double z, double sX, double sY, double u1, double v1, double u2, double v2)
+    {
+        double width = sX * (u2 - u1);
+        double height = sY * (v2 - v1);
+
+        this.texRenderer.texCoord((float) u1, (float) v1);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) x, (float) y, (float) z);
+        this.texRenderer.texCoord((float) u1, (float) v2);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) x, (float) (y + height), (float) z);
+        this.texRenderer.texCoord((float) u2, (float) v2);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) (x + width), (float) (y + height), (float) z);
+
+        this.texRenderer.texCoord((float) u1, (float) v1);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) x, (float) y, (float) z);
+        this.texRenderer.texCoord((float) u2, (float) v1);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) (x + width), (float) y, (float) z);
+        this.texRenderer.texCoord((float) u2, (float) v2);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) (x + width), (float) (y + height), (float) z);
+    }
+
+    public void drawLinkedImage(double x, double y, double z, double sX, double sY, double u1, double v1, double u2, double v2, double rotation)
+    {
+        double width = sX * (u2 - u1);
+        double height = sY * (v2 - v1);
+
+        this.texRenderer.texCoord((float) u1, (float) v1);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) rotateX(-width / 2, -height / 2, x, rotation), (float) rotateY(-width / 2, -height / 2, y, rotation), (float) z);
+        this.texRenderer.texCoord((float) u1, (float) v2);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) rotateX(-width / 2, height / 2, x, rotation), (float) rotateY(-width / 2, height / 2, y, rotation), (float) z);
+        this.texRenderer.texCoord((float) u2, (float) v2);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) rotateX(width / 2, height / 2, x, rotation), (float) rotateY(width / 2, height / 2, y, rotation), (float) z);
+
+        this.texRenderer.texCoord((float) u1, (float) v1);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) rotateX(-width / 2, -height / 2, x, rotation), (float) rotateY(-width / 2, -height / 2, y, rotation), (float) z);
+        this.texRenderer.texCoord((float) u2, (float) v1);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) rotateX(width / 2, -height / 2, x, rotation), (float) rotateY(width / 2, -height / 2, y, rotation), (float) z);
+        this.texRenderer.texCoord((float) u2, (float) v2);
+        this.texRenderer.color(this.color);
+        this.texRenderer.vertex((float) rotateX(width / 2, height / 2, x, rotation), (float) rotateY(width / 2, height / 2, y, rotation), (float) z);
+    }
+
+    public double rotateY(double px, double py, double posY, double rotation)
+    {
+        return (px * Math.cos(rotation) + py * Math.sin(rotation)) + posY;
+    }
+
+    public double rotateX(double px, double py, double posX, double rotation)
+    {
+        return (py * Math.cos(rotation) - px * Math.sin(rotation)) + posX;
+    }
+
+    void endLinkedImages()
+    {
+        this.texRenderer.end();
+
+        this.setMatrixProjection();
+        this.disableTexture();
+
+        //Gdx.gl.glDepthMask(true);
+        //this.disableDepthtest();
     }
 
     @Override
     public void setColor(double r, double g, double b, double a, double glow)
     {
-        this.setColor(r, g, b, a);
+        this.colorR = (float) Math.min(1, Math.max(0, r / 255.0));
+        this.colorG = (float) Math.min(1, Math.max(0, g / 255.0));
+        this.colorB = (float) Math.min(1, Math.max(0, b / 255.0));
+        this.colorA = (float) Math.min(1, Math.max(0, a / 255.0));
+        this.color.r = (float) this.colorR;
+        this.color.g = (float) this.colorG;
+        this.color.b = (float) this.colorB;
+        this.color.a = (float) this.colorA;
+
+        this.setDrawMode(this.currentDrawMode, this.depthTest, this.depthMask, this.glow, this.light, 0, glow);
     }
 
     @Override
     public void setColor(double r, double g, double b, double a)
     {
-        this.colorR = (float) Math.min(1, Math.max(0, r / 255.0));
-        this.colorG = (float) Math.min(1, Math.max(0, g / 255.0));
-        this.colorB = (float) Math.min(1, Math.max(0, b / 255.0));
-        this.colorA = (float) Math.min(1, Math.max(0, a / 255.0));
-        this.color = Color.toFloatBits((float) colorR, (float) colorG, (float) colorB, (float) colorA);
+        this.setColor(r, g, b, a, 0);
     }
 
     @Override
     public void setColor(double r, double g, double b)
     {
-        this.colorR = (float) Math.min(1, Math.max(0, r / 255.0));
-        this.colorG = (float) Math.min(1, Math.max(0, g / 255.0));
-        this.colorB = (float) Math.min(1, Math.max(0, b / 255.0));
-        this.colorA = 1;
-        this.color = Color.toFloatBits((float) colorR, (float) colorG, (float) colorB, 1);
+        this.setColor(r, g, b, 255, 0);
+    }
+
+    public String readFileAsString(String h)
+    {
+        ArrayList<String> s = Game.game.fileManager.getInternalFileContents(h);
+        StringBuilder b = new StringBuilder();
+
+        for (String ss: s)
+        {
+            b.append(ss).append("\n");
+        }
+
+        return b.toString();
     }
 }

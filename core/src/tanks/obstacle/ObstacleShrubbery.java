@@ -1,13 +1,14 @@
 package tanks.obstacle;
 
 import tanks.*;
-import tanks.bullet.BulletAir;
-import tanks.bullet.BulletFlame;
+import tanks.bullet.Bullet;
 import tanks.bullet.BulletInstant;
-import tanks.network.event.EventObstacleShrubberyBurn;
+import tanks.gui.screen.ICrusadePreviewScreen;
 import tanks.gui.screen.ILevelPreviewScreen;
 import tanks.gui.screen.IOverlayScreen;
 import tanks.gui.screen.ScreenGame;
+import tanks.network.event.EventObstacleShrubberyBurn;
+import tanks.rendering.ShaderShrubbery;
 import tanks.tank.Tank;
 
 public class ObstacleShrubbery extends Obstacle
@@ -47,6 +48,8 @@ public class ObstacleShrubbery extends Obstacle
 		this.update = true;
 
 		this.description = "A destructible bush in which you can hide by standing still";
+
+		this.renderer = ShaderShrubbery.class;
 	}
 
 	@Override
@@ -56,22 +59,27 @@ public class ObstacleShrubbery extends Obstacle
 
 		this.height = Math.min(this.height + Panel.frameFrequency, 255);
 
-		if (ScreenGame.finishedQuick && !Game.game.window.shapeRenderer.supportsBatching)
+		if (ScreenGame.finishedQuick)
 		{
 			this.height = Math.max(127, this.height - Panel.frameFrequency * 2);
 		}
 
-		this.finalHeight = this.baseGroundHeight + draw_size * (0.2 + this.heightMultiplier * (1 - (255 - this.height) / 128));
+		this.finalHeight = this.baseGroundHeight + Game.tile_size * (0.2 + this.heightMultiplier * (1 - (255 - this.height) / 128));
+
+		if (this.finalHeight != this.previousFinalHeight)
+		{
+			Game.redrawObstacles.add(this);
+		}
 	}
 
 	@Override
 	public void draw()
 	{
-		this.finalHeight = this.baseGroundHeight + draw_size * (0.2 + this.heightMultiplier * (1 - (255 - this.height) / 128));
+		this.finalHeight = this.baseGroundHeight + Game.tile_size * (0.2 + this.heightMultiplier * (1 - (255 - this.height) / 128));
 
-		if (!Game.game.window.shapeRenderer.supportsBatching)
+		if (!Game.enable3d)
 		{
-			if (Game.screen instanceof ILevelPreviewScreen || Game.screen instanceof IOverlayScreen || Game.screen instanceof ScreenGame && (!((ScreenGame) Game.screen).playing))
+			if (Game.screen instanceof ILevelPreviewScreen || Game.screen instanceof ICrusadePreviewScreen || Game.screen instanceof IOverlayScreen || Game.screen instanceof ScreenGame && (!((ScreenGame) Game.screen).playing))
 			{
 				this.height = 127;
 			}
@@ -80,8 +88,7 @@ public class ObstacleShrubbery extends Obstacle
 		if (Game.enable3d)
 		{
 			Drawing.drawing.setColor(this.colorR, this.colorG, this.colorB);
-			Drawing.drawing.setShrubberyMode();
-			Drawing.drawing.fillBox(this, this.posX, this.posY, 0, draw_size, draw_size, this.finalHeight, (byte) (this.getOptionsByte(this.getTileHeight()) + 1));
+			Drawing.drawing.fillBox(this, this.posX, this.posY, 0, Game.tile_size, Game.tile_size, this.finalHeight, (byte) (this.getOptionsByte(this.getTileHeight()) + 1));
 		}
 		else
 		{
@@ -126,7 +133,7 @@ public class ObstacleShrubbery extends Obstacle
 		//m.hiddenTimer = Math.min(100, m.hiddenTimer + (this.opacity - 127) / 255);
 		//m.canHide = true;
 
-		if (m instanceof BulletFlame)
+		if (m instanceof Bullet && ((Bullet) m).burnsBushes)
 		{
 			Game.removeObstacles.add(this);
 
@@ -153,9 +160,9 @@ public class ObstacleShrubbery extends Obstacle
 	@Override
 	public void onObjectEntryLocal(Movable m)
 	{
-		if (m instanceof BulletAir)
+		if (m instanceof Bullet && !((Bullet) m).lowersBushes)
 		{
-			if (Math.random() < Panel.frameFrequency / Math.pow(((BulletAir) m).size, 2) * 20 * Game.effectMultiplier)
+			if (Math.random() < Panel.frameFrequency / Math.pow(((Bullet) m).size, 2) * 20 * Game.effectMultiplier)
 			{
 				Effect e = Effect.createNewEffect(this.posX + (Math.random() - 0.5) * Obstacle.draw_size, this.posY + (Math.random() - 0.5) * Obstacle.draw_size, this.getTileHeight() * (Math.random() * 0.8 + 0.2), Effect.EffectType.piece);
 				e.vX = m.vX * (Math.random() * 0.5 + 0.5);
@@ -202,10 +209,5 @@ public class ObstacleShrubbery extends Obstacle
 	public byte getOptionsByte(double h)
 	{
 		return 0;
-	}
-
-	public boolean positionChanged()
-	{
-		return this.previousFinalHeight != this.finalHeight || super.positionChanged();
 	}
 }

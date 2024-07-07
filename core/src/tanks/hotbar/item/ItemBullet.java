@@ -4,7 +4,10 @@ import tanks.AttributeModifier;
 import tanks.Game;
 import tanks.Panel;
 import tanks.Player;
-import tanks.bullet.*;
+import tanks.bullet.Bullet;
+import tanks.bullet.BulletArc;
+import tanks.bullet.legacy.BulletAir;
+import tanks.bullet.legacy.BulletFlame;
 import tanks.gui.property.UIPropertyBoolean;
 import tanks.gui.property.UIPropertyDouble;
 import tanks.gui.property.UIPropertyInt;
@@ -232,6 +235,7 @@ public class ItemBullet extends Item
 		this.shotSpread = (double) this.getProperty("multishot_spread_angle");
 	}
 
+	//TODO change
 	public double getRange()
 	{
 		if (BulletArc.class.isAssignableFrom(this.bulletClass))

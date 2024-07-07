@@ -2,7 +2,6 @@ package tanks.tank;
 
 import tanks.*;
 import tanks.bullet.Bullet;
-import tanks.network.event.*;
 import tanks.gui.IFixedMenu;
 import tanks.gui.Scoreboard;
 import tanks.gui.screen.ScreenGame;
@@ -12,6 +11,7 @@ import tanks.hotbar.item.Item;
 import tanks.hotbar.item.ItemBullet;
 import tanks.hotbar.item.ItemEmpty;
 import tanks.hotbar.item.ItemMine;
+import tanks.network.event.*;
 
 public class TankPlayerRemote extends Tank implements IServerPlayerTank
 {
@@ -47,14 +47,34 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
     public double dXSinceFrame = 0;
     public double dYSinceFrame = 0;
 
-    public double interpolationTime = 25;
+    public double interpolationTime = 1;
 
-    public double interpolatedOffX = 0;
-    public double interpolatedOffY = 0;
-    public double interpolatedProgress = interpolationTime;
+    public double prevKnownPosX;
+    public double prevKnownPosY;
+    public double prevKnownVX;
+    public double prevKnownVY;
+    public double prevKnownVXFinal;
+    public double prevKnownVYFinal;
 
-    public double interpolatedPosX = this.posX;
-    public double interpolatedPosY = this.posY;
+    public double currentKnownPosX;
+    public double currentKnownPosY;
+    public double currentKnownVX;
+    public double currentKnownVY;
+
+    public double lastAngle;
+    public double lastPitch;
+    public double currentAngle;
+    public double currentPitch;
+
+    public double timeSinceRefresh = 0;
+
+    public int lastLiveBullets;
+    public int lastMaxLiveBullets;
+    public int lastLiveMines;
+    public int lastMaxLiveMines;
+
+    public long lastUpdate;
+    public double localAge;
 
     public TankPlayerRemote(double x, double y, double angle, Player p)
     {
@@ -65,16 +85,70 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
         this.orientation = angle;
 
         this.standardUpdateEvent = false;
+        this.managedMotion = false;
         this.player.tank = this;
 
         this.lastPosX = x;
         this.lastPosY = y;
     }
 
+    public void updateMovement()
+    {
+        if (this.localAge <= 0)
+        {
+            this.currentKnownPosX = this.posX;
+            this.currentKnownPosY = this.posY;
+            this.prevKnownPosX = this.posX;
+            this.prevKnownPosY = this.posY;
+        }
+
+        this.timeSinceRefresh += Panel.frameFrequency;
+        this.localAge += Panel.frameFrequency;
+
+        super.update();
+
+        double pvx = this.prevKnownVXFinal;
+        double pvy = this.prevKnownVYFinal;
+        double cvx = this.getAttributeValue(AttributeModifier.velocity, this.currentKnownVX) * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
+        double cvy = this.getAttributeValue(AttributeModifier.velocity, this.currentKnownVY) * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
+
+        this.posX = TankRemote.cubicInterpolationVelocity(this.prevKnownPosX, pvx, this.currentKnownPosX, cvx, this.timeSinceRefresh, this.interpolationTime);
+        this.posY = TankRemote.cubicInterpolationVelocity(this.prevKnownPosY, pvy, this.currentKnownPosY, cvy, this.timeSinceRefresh, this.interpolationTime);
+
+        //System.out.printf("t: %f %f | pos: %f %f -> %f %f, vel %f %f -> %f %f\n", this.timeSinceRefresh, this.interpolationTime, +this.prevKnownPosX, this.prevKnownPosY, this.currentKnownPosX, this.currentKnownPosY, this.prevKnownVX, this.prevKnownVY, this.currentKnownVX, this.currentKnownVY);
+        //System.out.printf("pos: %f %f\n", this.posX, this.posY);
+
+        double frac = Math.min(1, this.timeSinceRefresh / this.interpolationTime);
+        this.vX = (1 - frac) * this.prevKnownVX + frac * this.currentKnownVX;
+        this.vY = (1 - frac) * this.prevKnownVY + frac * this.currentKnownVY;
+
+        this.lastFinalVX = (this.posX - super.lastPosX) / Panel.frameFrequency;
+        this.lastFinalVY = (this.posY - super.lastPosY) / Panel.frameFrequency;
+
+        double angDiff = Movable.angleBetween(this.lastAngle, this.currentAngle);
+        this.angle = this.lastAngle - frac * angDiff;
+        this.pitch = (1 - frac) * this.lastPitch + frac * this.currentPitch;
+
+        this.checkCollision();
+
+        this.orientation = (this.orientation + Math.PI * 2) % (Math.PI * 2);
+
+        if (!(Math.abs(this.posX - super.lastPosX) < 0.01 && Math.abs(this.posY - super.lastPosY) < 0.01) && !this.destroy && !ScreenGame.finished)
+        {
+            double dist = Math.sqrt(Math.pow(this.posX - super.lastPosX, 2) + Math.pow(this.posY - super.lastPosY, 2));
+
+            double dir = Math.PI + this.getAngleInDirection(super.lastPosX, super.lastPosY);
+            if (Movable.absoluteAngleBetween(this.orientation, dir) <= Movable.absoluteAngleBetween(this.orientation + Math.PI, dir))
+                this.orientation -= Movable.angleBetween(this.orientation, dir) / 20 * dist;
+            else
+                this.orientation -= Movable.angleBetween(this.orientation + Math.PI, dir) / 20 * dist;
+        }
+    }
+
     @Override
     public void update()
     {
-        super.update();
+        this.updateMovement();
 
         double reload = this.getAttributeValue(AttributeModifier.reload, 1);
 
@@ -101,10 +175,21 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
 
         if (this.hasCollided)
         {
+            //System.out.println("collision");
             this.lastVX = this.vX;
             this.lastVY = this.vY;
             //this.lastPosX = this.posX;
             //this.lastPosY = this.posY;
+
+            this.prevKnownPosX = this.posX;
+            this.prevKnownPosY = this.posY;
+            this.prevKnownVX = this.vX;
+            this.prevKnownVY = this.vY;
+            this.prevKnownVXFinal = this.lastFinalVX;
+            this.prevKnownVYFinal = this.lastFinalVY;
+            this.lastAngle = this.angle;
+            //this.interpolationTime -= this.timeSinceRefresh;
+            this.timeSinceRefresh = 0;
         }
 
         if (this.tookRecoil)
@@ -122,9 +207,6 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
         }
 
         this.refreshAmmo();
-
-        this.interpolatedPosX = this.posX - this.interpolatedOffX * (interpolationTime - interpolatedProgress) / interpolationTime;
-        this.interpolatedPosY = this.posY - this.interpolatedOffY * (interpolationTime - interpolatedProgress) / interpolationTime;
     }
 
     public void refreshAmmo()
@@ -141,7 +223,13 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
                 im = (ItemMine) b.slots[b.selected];
         }
 
-        Game.eventsOut.add(new EventTankControllerUpdateAmmunition(this.player.clientID, ib.liveBullets, ib.maxLiveBullets, im.liveMines, im.maxLiveMines));
+        if (lastLiveBullets != ib.liveBullets || ib.maxLiveBullets != lastMaxLiveBullets || im.liveMines != lastLiveMines || im.maxLiveMines != lastMaxLiveMines)
+            Game.eventsOut.add(new EventTankControllerUpdateAmmunition(this.player.clientID, ib.liveBullets, ib.maxLiveBullets, im.liveMines, im.maxLiveMines, ib.cooldown, ib.cooldownBase));
+
+        lastLiveBullets = ib.liveBullets;
+        lastLiveMines = im.liveMines;
+        lastMaxLiveBullets = ib.maxLiveBullets;
+        lastMaxLiveMines = im.maxLiveMines;
     }
 
     public void controllerUpdate(double x, double y, double vX, double vY, double angle, double mX, double mY, boolean action1, boolean action2, double time, long receiveTime)
@@ -263,12 +351,22 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
             if (!((ScreenGame) Game.screen).playing)
                 return;
 
-            double iTime = Math.max(0.1, time);
+            this.currentKnownPosX = x;
+            this.currentKnownPosY = y;
+            this.currentKnownVX = vX;
+            this.currentKnownVY = vY;
 
-            this.interpolatedOffX = x - (this.posX - this.interpolatedOffX * (this.interpolationTime - this.interpolatedProgress) / this.interpolationTime);
-            this.interpolatedOffY = y - (this.posY - this.interpolatedOffY * (this.interpolationTime - this.interpolatedProgress) / this.interpolationTime);
-            this.interpolatedProgress = 0;
-            this.interpolationTime = iTime;
+            this.prevKnownPosX = this.posX;
+            this.prevKnownPosY = this.posY;
+            this.prevKnownVX = this.vX;
+            this.prevKnownVY = this.vY;
+            this.prevKnownVXFinal = this.lastFinalVX;
+            this.prevKnownVYFinal = this.lastFinalVY;
+
+            this.lastAngle = this.angle;
+            this.lastPitch = this.pitch;
+            this.currentAngle = angle;
+            this.currentPitch = this.pitch;
 
             this.posX = x;
             this.posY = y;
@@ -283,44 +381,25 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
             this.lastVX = vX;
             this.lastVY = vY;
 
+            long t = System.currentTimeMillis();
+            this.interpolationTime = Math.min(100, (t - this.lastUpdate) / 10.0);
+            this.lastUpdate = t;
+
+            this.timeSinceRefresh = 0;
+            this.lastUpdateTime = t;
+
             if (action1 && !this.disabled)
                 this.shoot();
 
             if (action2 && !this.disabled)
                 this.layMine();
+
+            this.posX = this.prevKnownPosX;
+            this.posY = this.prevKnownPosY;
+            this.vX = this.prevKnownVX;
+            this.vY = this.prevKnownVY;
+            this.angle = this.lastAngle;
         }
-    }
-
-    @Override
-    public void draw()
-    {
-        double realPosX = this.posX;
-        double realPosY = this.posY;
-
-        this.interpolatedProgress = Math.min(this.interpolatedProgress + Panel.frameFrequency, interpolationTime);
-
-        this.posX = this.posX - this.interpolatedOffX * (interpolationTime - interpolatedProgress) / interpolationTime;
-        this.posY = this.posY - this.interpolatedOffY * (interpolationTime - interpolatedProgress) / interpolationTime;
-
-        super.draw();
-
-        this.posX = realPosX;
-        this.posY = realPosY;
-    }
-
-    @Override
-    public void drawTread()
-    {
-        double realPosX = this.posX;
-        double realPosY = this.posY;
-
-        this.posX = this.posX - this.interpolatedOffX * (interpolationTime - interpolatedProgress) / interpolationTime;
-        this.posY = this.posY - this.interpolatedOffY * (interpolationTime - interpolatedProgress) / interpolationTime;
-
-        super.drawTread();
-
-        this.posX = realPosX;
-        this.posY = realPosY;
     }
 
     public void layMine(Mine m)
@@ -386,7 +465,7 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
         this.addPolarMotion(b.getPolarDirection() + Math.PI, 25.0 / 32.0 * b.recoil * this.getAttributeValue(AttributeModifier.recoil, 1) * b.frameDamageMultipler);
 
         if (b.moveOut)
-            b.moveOut(50 / speed * this.size / Game.tile_size);
+            b.moveOut(50 * this.size / Game.tile_size);
 
         b.setTargetLocation(this.mouseX, this.mouseY);
 
@@ -399,7 +478,7 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
         if (!this.hasCollided)
             this.recoil = true;
 
-        Game.eventsOut.add(new EventTankControllerAddVelocity(this, this.vX - vX, this.vY - vY));
+        Game.eventsOut.add(new EventTankControllerAddVelocity(this, this.vX - vX, this.vY - vY, true));
 
         if (Crusade.crusadeMode && Crusade.currentCrusade != null)
         {
@@ -435,26 +514,6 @@ public class TankPlayerRemote extends Tank implements IServerPlayerTank
                     ((Scoreboard) m).addPlayerScore(this.player, 1);
             }
         }
-    }
-
-    public void drawName()
-    {
-        double realPosX = this.posX;
-        double realPosY = this.posY;
-
-        this.posX = this.posX - this.interpolatedOffX * (interpolationTime - interpolatedProgress) / interpolationTime;
-        this.posY = this.posY - this.interpolatedOffY * (interpolationTime - interpolatedProgress) / interpolationTime;
-
-        Drawing.drawing.setFontSize(this.nameTag.size);
-        Drawing.drawing.setColor(this.secondaryColorR, this.secondaryColorG, this.secondaryColorB);
-
-        if (Game.enable3d)
-            Drawing.drawing.drawText(this.posX + this.nameTag.ox, this.posY + this.nameTag.oy, this.posZ + this.nameTag.oz, this.nameTag.name);
-        else
-            Drawing.drawing.drawText(this.posX + this.nameTag.ox, this.posY + this.nameTag.oy, this.nameTag.name);
-
-        this.posX = realPosX;
-        this.posY = realPosY;
     }
 
     @Override

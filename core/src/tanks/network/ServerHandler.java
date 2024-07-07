@@ -13,12 +13,15 @@ import tanks.gui.ChatMessage;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.network.event.*;
 
+import java.util.HashMap;
 import java.util.UUID;
 
 public class ServerHandler extends ChannelInboundHandlerAdapter
 {
 	public MessageReader reader = new MessageReader();
 	public SynchronizedList<INetworkEvent> events = new SynchronizedList<>();
+	protected HashMap<Integer, IStackableEvent> stackedEvents = new HashMap<>();
+	protected long lastStackedEventSend = 0;
 
 	public ChannelHandlerContext ctx;
 	public SteamID steamID;
@@ -32,13 +35,9 @@ public class ServerHandler extends ChannelInboundHandlerAdapter
 	public String rawUsername;
 	public String username;
 
-	public long lastMessage = -1;
-	public long latency = 0;
-
-	public long latencySum = 0;
-	public int latencyCount = 1;
-	public long lastLatencyTime = 0;
-	public long lastLatencyAverage = 0;
+	public long lastPingSent;
+	public long lastLatency;
+	public boolean pingReceived = true;
 
 	public boolean closed = false;
 
@@ -83,7 +82,12 @@ public class ServerHandler extends ChannelInboundHandlerAdapter
 			}
 		}
 
-		//System.out.println(eventFrequencies);
+//		//System.out.println(eventFrequencies);
+//
+//		for (String s: eventFrequencies.keySet())
+//		{
+//			System.out.println(s + ": " + eventFrequencies.get(s));
+//		}
 	}
 
 	@Override
@@ -94,50 +98,62 @@ public class ServerHandler extends ChannelInboundHandlerAdapter
 
 		this.ctx = ctx;
 		ByteBuf buffy = (ByteBuf) msg;
-		boolean reply = this.reader.queueMessage(this, buffy, this.clientID);
+		this.reader.queueMessage(this, buffy, this.clientID);
 
 		if (steamID == null)
 			ReferenceCountUtil.release(msg);
-
-		if (reply)
-		{
-			if (lastMessage < 0)
-				lastMessage = System.currentTimeMillis();
-
-			long time = System.currentTimeMillis();
-			latency = time - lastMessage;
-			lastMessage = time;
-
-			latencyCount++;
-			latencySum += latency;
-
-			if (time / 1000 > lastLatencyTime)
-			{
-				lastLatencyTime = time / 1000;
-				lastLatencyAverage = latencySum / latencyCount;
-
-				latencySum = 0;
-				latencyCount = 0;
-			}
-
-			this.sendEvent(new EventPing());
-		}
 	}
 
 	public void reply()
 	{
 		synchronized (this.events)
 		{
+			INetworkEvent prev = null;
 			for (int i = 0; i < this.events.size(); i++)
 			{
 				INetworkEvent e = this.events.get(i);
-				this.sendEvent(e, i >= this.events.size() - 1);
+
+				if (e instanceof IStackableEvent && ((IStackableEvent) e).isStackable())
+					this.stackedEvents.put(IStackableEvent.f(NetworkEventMap.get(e.getClass()) + IStackableEvent.f(((IStackableEvent) e).getIdentifier())), (IStackableEvent) e);
+				else
+				{
+					if (prev != null)
+						this.sendEvent(prev,false);
+
+					prev = e;
+				}
 			}
+
+			long time = System.currentTimeMillis() * Game.networkRate / 1000;
+			if (time != lastStackedEventSend)
+			{
+				lastStackedEventSend = time;
+				int size = this.stackedEvents.values().size();
+
+				if (prev != null)
+					this.sendEvent(prev, size == 0);
+
+				for (IStackableEvent e: this.stackedEvents.values())
+				{
+					size--;
+					this.sendEvent(e, size <= 0);
+				}
+				this.stackedEvents.clear();
+			}
+			else if (prev != null)
+				this.sendEvent(prev, true);
 
 			if (steamID == null)
 				this.ctx.flush();
 
 			this.events.clear();
+
+			if (pingReceived && System.currentTimeMillis() - lastPingSent > 1000)
+			{
+				pingReceived = false;
+				lastPingSent = System.currentTimeMillis();
+				this.sendEvent(new EventPing(false));
+			}
 		}
 	}
 
@@ -146,12 +162,12 @@ public class ServerHandler extends ChannelInboundHandlerAdapter
 		this.sendEvent(e, true);
 	}
 
-	//public HashMap<String, Integer> eventFrequencies = new HashMap<>();
+	public HashMap<String, Integer> eventFrequencies = new HashMap<>();
 
 	public synchronized void sendEvent(INetworkEvent e, boolean flush)
 	{
-		//eventFrequencies.putIfAbsent(e.getClass().getSimpleName(), 0);
-		//eventFrequencies.put(e.getClass().getSimpleName(), eventFrequencies.get(e.getClass().getSimpleName()) + 1);
+		eventFrequencies.putIfAbsent(e.getClass().getSimpleName(), 0);
+		eventFrequencies.put(e.getClass().getSimpleName(), eventFrequencies.get(e.getClass().getSimpleName()) + 1);
 
 		if (steamID != null)
 		{

@@ -8,7 +8,6 @@ import tanks.Game;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 
 
@@ -70,8 +69,7 @@ public class SavedFilesList extends ButtonList
             String name = pathSections[pathSections.length - 1].split("\\.")[0];
             BaseFile file = Game.game.fileManager.getFile(l);
 
-            Button b = new Button(0, 0, this.objWidth, this.objHeight, name.replace("_", " "), () -> behavior.accept(name, file)
-                    , hover.apply(file));
+            Button b = new Button(0, 0, this.objWidth, this.objHeight, name.replace("_", " "), () -> behavior.accept(name, file), hover.apply(file));
 
             times.put(b, file.lastModified());
 

@@ -9,14 +9,12 @@ import tanks.gui.screen.ITankScreen;
 import tanks.gui.screen.Screen;
 import tanks.gui.screen.ScreenAddSavedTank;
 import tanks.gui.screen.ScreenTankEditor;
-import tanks.hotbar.item.Item;
 import tanks.tank.Tank;
 import tanks.tank.TankAIControlled;
 import tanks.tank.TankPlayer;
 import tanks.tank.TankSpawnMarker;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 
 public class OverlayObjectMenu extends ScreenLevelEditorOverlay implements ITankScreen
 {
@@ -28,13 +26,13 @@ public class OverlayObjectMenu extends ScreenLevelEditorOverlay implements ITank
 
     public Runnable drawEditTank = () -> this.editTank.draw();
 
-    public Button nextTankPage = new Button(this.centerX + 190, this.centerY + this.objYSpace * 3, this.objWidth, this.objHeight, "Next page", () -> screenLevelEditor.tankPage++);
+    public Button nextTankPage = new Button(this.centerX + 190, this.centerY + 60 * 3, 350, 40, "Next page", () -> screenLevelEditor.tankPage++);
 
-    public Button previousTankPage = new Button(this.centerX - 190, this.centerY + this.objYSpace * 3, this.objWidth, this.objHeight, "Previous page", () -> screenLevelEditor.tankPage--);
+    public Button previousTankPage = new Button(this.centerX - 190, this.centerY + 60 * 3, 350, 40, "Previous page", () -> screenLevelEditor.tankPage--);
 
-    public Button nextObstaclePage = new Button(this.centerX + 190, this.centerY + this.objYSpace * 3, this.objWidth, this.objHeight, "Next page", () -> screenLevelEditor.obstaclePage++);
+    public Button nextObstaclePage = new Button(this.centerX + 190, this.centerY + 60 * 3, 350, 40, "Next page", () -> screenLevelEditor.obstaclePage++);
 
-    public Button previousObstaclePage = new Button(this.centerX - 190, this.centerY + this.objYSpace * 3, this.objWidth, this.objHeight, "Previous page", () -> screenLevelEditor.obstaclePage--);
+    public Button previousObstaclePage = new Button(this.centerX - 190, this.centerY + 60 * 3, 350, 40, "Previous page", () -> screenLevelEditor.obstaclePage--);
 
     public Button exitObjectMenu = new Button(this.centerX, this.centerY + 240, 350, 40, "Ok", () ->
     {

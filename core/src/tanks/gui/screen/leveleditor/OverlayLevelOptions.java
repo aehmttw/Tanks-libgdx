@@ -58,10 +58,9 @@ public class OverlayLevelOptions extends ScreenLevelEditorOverlay
         }
                 ,  screenLevelEditor.name.split("\\.")[0].replace("_", " "));
 
-        levelName.maxChars = 18;
         levelName.enableCaps = true;
 
-        lightingOptions.enabled = Game.framework != Game.Framework.libgdx;
+        //lightingOptions.enabled = Game.framework != Game.Framework.libgdx;
     }
 
     public void update()

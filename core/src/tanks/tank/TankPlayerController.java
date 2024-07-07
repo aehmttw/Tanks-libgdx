@@ -5,12 +5,12 @@ import tanks.Drawing;
 import tanks.Game;
 import tanks.Panel;
 import tanks.bullet.BulletElectric;
-import tanks.network.event.EventTankControllerUpdateC;
 import tanks.gui.screen.ScreenGame;
 import tanks.hotbar.Hotbar;
 import tanks.hotbar.item.Item;
 import tanks.hotbar.item.ItemBullet;
 import tanks.hotbar.item.ItemRemote;
+import tanks.network.event.EventTankControllerUpdateC;
 
 import java.util.UUID;
 
@@ -49,11 +49,18 @@ public class TankPlayerController extends Tank implements ILocalPlayerTank
         this.isRemote = true;
         this.angle = angle;
         this.orientation = angle;
+
+        if (Game.nameInMultiplayer)
+        {
+            this.nameTag.name = Game.player.username;
+            this.showName = true;
+        }
     }
 
     @Override
     public void update()
     {
+        this.bullet.cooldown = Math.max(0, this.bullet.cooldown - Panel.frameFrequency);
         this.interpolatedProgress = Math.min(this.interpolatedProgress + Panel.frameFrequency, interpolationTime);
 
         this.posX = this.posX - this.interpolatedOffX * (interpolationTime - interpolatedProgress) / interpolationTime;

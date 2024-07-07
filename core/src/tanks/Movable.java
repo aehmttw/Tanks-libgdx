@@ -1,15 +1,12 @@
 package tanks;
 
 import tanks.bullet.Bullet;
-import tanks.gui.screen.Screen;
 import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyHost;
-import tanks.gui.screen.ScreenPartyLobby;
 import tanks.network.event.EventStatusEffectBegin;
 import tanks.network.event.EventStatusEffectDeteriorate;
 import tanks.network.event.EventStatusEffectEnd;
 import tanks.obstacle.Obstacle;
-import tanks.tank.Mine;
 import tanks.tank.NameTag;
 import tanks.tank.Tank;
 
@@ -39,6 +36,10 @@ public abstract class Movable implements IDrawableForInterface, IGameObject
 	public double lastVY;
 	public double lastVZ;
 
+	public double lastOriginalVX;
+	public double lastOriginalVY;
+	public double lastOriginalVZ;
+
 	public boolean destroy = false;
 	public boolean dealsDamage = true;
 
@@ -49,6 +50,7 @@ public abstract class Movable implements IDrawableForInterface, IGameObject
 
 	public int drawLevel = 3;
 	public boolean isRemote = false;
+	public boolean managedMotion = true;
 
 	public ArrayList<AttributeModifier> attributes = new ArrayList<>();
 	public HashMap<StatusEffect, StatusEffect.Instance> statusEffects = new HashMap<>();
@@ -72,6 +74,10 @@ public abstract class Movable implements IDrawableForInterface, IGameObject
 		this.lastVX = (this.posX - this.lastPosX) / Panel.frameFrequency;
 		this.lastVY = (this.posY - this.lastPosY) / Panel.frameFrequency;
 		this.lastVZ = (this.posZ - this.lastPosZ) / Panel.frameFrequency;
+
+		this.lastOriginalVX = this.vX;
+		this.lastOriginalVY = this.vY;
+		this.lastOriginalVZ = this.vZ;
 
 		this.lastPosX = this.posX;
 		this.lastPosY = this.posY;
@@ -105,17 +111,20 @@ public abstract class Movable implements IDrawableForInterface, IGameObject
 
 			this.updateStatusEffects();
 
-			vX2 = this.getAttributeValue(AttributeModifier.velocity, vX2);
-			vY2 = this.getAttributeValue(AttributeModifier.velocity, vY2);
-			vZ2 = this.getAttributeValue(AttributeModifier.velocity, vZ2);
+			if (this.managedMotion)
+			{
+				vX2 = this.getAttributeValue(AttributeModifier.velocity, vX2);
+				vY2 = this.getAttributeValue(AttributeModifier.velocity, vY2);
+				vZ2 = this.getAttributeValue(AttributeModifier.velocity, vZ2);
 
-			this.lastFinalVX = vX2 * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
-			this.lastFinalVY = vY2 * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
-			this.lastFinalVZ = vZ2 * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
+				this.lastFinalVX = vX2 * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
+				this.lastFinalVY = vY2 * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
+				this.lastFinalVZ = vZ2 * ScreenGame.finishTimer / ScreenGame.finishTimerMax;
 
-			this.posX += this.lastFinalVX * Panel.frameFrequency;
-			this.posY += this.lastFinalVY * Panel.frameFrequency;
-			this.posZ += this.lastFinalVZ * Panel.frameFrequency;
+				this.posX += this.lastFinalVX * Panel.frameFrequency;
+				this.posY += this.lastFinalVY * Panel.frameFrequency;
+				this.posZ += this.lastFinalVZ * Panel.frameFrequency;
+			}
 		}
 	}
 
@@ -191,6 +200,14 @@ public abstract class Movable implements IDrawableForInterface, IGameObject
 		this.vY = velY;
 	}
 
+	static double pi_over_4 = Math.PI / 4;
+	static double fastAtan(double a)
+	{
+		if (a < -1 || a > 1)
+			return Math.atan(a);
+
+		return pi_over_4 * a - a * (Math.abs(a) - 1) * (0.2447 + 0.0663 * Math.abs(a));
+	}
 
 	public double getAngleInDirection(double x, double y)
 	{
@@ -199,9 +216,9 @@ public abstract class Movable implements IDrawableForInterface, IGameObject
 
 		double angle = 0;
 		if (x > 0)
-			angle = Math.atan(y/x);
+			angle = fastAtan(y/x);
 		else if (x < 0)
-			angle = Math.atan(y/x) + Math.PI;
+			angle = fastAtan(y/x) + Math.PI;
 		else
 		{
 			if (y > 0)
@@ -285,6 +302,12 @@ public abstract class Movable implements IDrawableForInterface, IGameObject
 		this.posY += amount * y;
 	}
 
+	public void moveInAngle(double a, double amount)
+	{
+		this.posX += amount * Math.cos(a);
+		this.posY += amount * Math.sin(a);
+	}
+
 	public double getSpeed()
 	{
 		return Math.sqrt(Math.pow(this.vX, 2) + Math.pow(this.vY, 2));
@@ -360,7 +383,7 @@ public abstract class Movable implements IDrawableForInterface, IGameObject
 		if (warmup <= age && this.statusEffects.get(s) != null)
 		{
 			StatusEffect.Instance i = this.statusEffects.get(s);
-			if (i.age > i.warmupAge && i.age < i.deteriorationAge)
+			if (i.age >= i.warmupAge && i.age < i.deteriorationAge)
 				dontAdd = true;
 		}
 

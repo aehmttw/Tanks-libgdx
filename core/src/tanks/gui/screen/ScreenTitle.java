@@ -4,7 +4,6 @@ import basewindow.InputCodes;
 import tanks.*;
 import tanks.gui.Button;
 import tanks.minigames.Minigame;
-import tanks.network.event.EventArcadeHit;
 import tanks.obstacle.Face;
 import tanks.obstacle.ISolidObject;
 import tanks.obstacle.Obstacle;
@@ -341,15 +340,26 @@ public class ScreenTitle extends Screen implements ISeparateBackgroundScreen
 			this.controlPlayer = false;
 		}
 
-		if (!controlPlayer && Drawing.drawing.interfaceScaleZoom <= 1)
+		if (!controlPlayer)
 		{
 			this.logo.posX = Drawing.drawing.sizeX / 2;
 			this.logo.posY = Drawing.drawing.sizeY / 2 - 250 * Drawing.drawing.interfaceScaleZoom;
+
+			if (Drawing.drawing.interfaceScaleZoom > 1)
+			{
+				this.logo.posY += 180 * Drawing.drawing.interfaceScaleZoom;
+				this.logo.posX -= 260 * Drawing.drawing.interfaceScaleZoom;
+			}
 		}
 	}
 
 	public void drawWithoutBackground()
 	{
+		languages.posX = -(Game.game.window.absoluteWidth / Drawing.drawing.interfaceScale - Drawing.drawing.interfaceSizeX) / 2
+				+ Game.game.window.getEdgeBounds() / Drawing.drawing.interfaceScale + 50 * Drawing.drawing.interfaceScaleZoom;
+		languages.posY = ((Game.game.window.absoluteHeight - Drawing.drawing.statsHeight) / Drawing.drawing.interfaceScale - Drawing.drawing.interfaceSizeY) / 2
+				+ Drawing.drawing.interfaceSizeY - 50 * Drawing.drawing.interfaceScaleZoom;
+
 		if (this.logo == null)
 		{
 			this.logo = new TankPlayer(Drawing.drawing.sizeX / 2, Drawing.drawing.sizeY / 2 - 250 * Drawing.drawing.interfaceScaleZoom, 0);
@@ -375,6 +385,8 @@ public class ScreenTitle extends Screen implements ISeparateBackgroundScreen
 			Game.movables.add(logo);
 		}
 
+		this.logo.luminance = Math.max(0.5, 1 - this.screenAge / 50.0);
+
 		play.draw();
 		exit.draw();
 		options.draw();
@@ -384,7 +396,6 @@ public class ScreenTitle extends Screen implements ISeparateBackgroundScreen
 			debug.draw();
 
 		about.draw();
-
 
 		Drawing.drawing.setColor(Turret.calculateSecondaryColor(Game.player.colorR), Turret.calculateSecondaryColor(Game.player.colorG), Turret.calculateSecondaryColor(Game.player.colorB));
 		Drawing.drawing.setInterfaceFontSize(this.titleSize * 2.5);
@@ -429,7 +440,8 @@ public class ScreenTitle extends Screen implements ISeparateBackgroundScreen
 	@Override
 	public void draw()
 	{
-		this.drawDefaultBackground();
+		if (Game.screen == this)
+			this.drawDefaultBackground();
 
 		this.drawWithoutBackground();
 	}

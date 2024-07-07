@@ -3,11 +3,11 @@ package tanks.gui.screen.leveleditor;
 import basewindow.BaseFile;
 import basewindow.InputPoint;
 import tanks.*;
-import tanks.network.event.EventTankPlayerCreate;
-import tanks.network.event.INetworkEvent;
-import tanks.gui.*;
+import tanks.gui.Button;
+import tanks.gui.ButtonList;
 import tanks.gui.screen.*;
 import tanks.hotbar.item.Item;
+import tanks.network.event.INetworkEvent;
 import tanks.obstacle.Obstacle;
 import tanks.obstacle.ObstacleUnknown;
 import tanks.tank.Tank;
@@ -427,7 +427,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 		if (showControls)
 		{
-			boolean vertical = Drawing.drawing.interfaceScale * Drawing.drawing.interfaceSizeY >= Game.game.window.absoluteHeight - Drawing.drawing.statsHeight;
+			boolean vertical = Drawing.drawing.interfaceScale * Drawing.drawing.interfaceSizeY >= Game.game.window.absoluteHeight - Drawing.drawing.statsHeight - 0.001;
 			double vStep = 0;
 			double hStep = 0;
 
@@ -883,6 +883,9 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				panDown = false;
 		}
 
+		double px = Drawing.drawing.toInterfaceCoordsX(panCurrentX);
+		double py = Drawing.drawing.toInterfaceCoordsY(panCurrentY);
+
 		if (!zoomDown && panDown)
 		{
 			if (prevPanDown && !prevZoomDown)
@@ -891,25 +894,41 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				offsetY += panCurrentY - panY;
 			}
 
-			panX = Drawing.drawing.getMouseX();
-			panY = Drawing.drawing.getMouseY();
+			panX = Drawing.drawing.toGameCoordsX(px);
+			panY = Drawing.drawing.toGameCoordsY(py);
 		}
 
 
 		if (zoomDown)
 		{
-			double x = (panCurrentX + zoomCurrentX) / 2;
-			double y = (panCurrentY + zoomCurrentY) / 2;
-			double d = Math.sqrt(Math.pow(Drawing.drawing.toInterfaceCoordsX(panCurrentX) - Drawing.drawing.toInterfaceCoordsX(zoomCurrentX), 2)
-					+ Math.pow(Drawing.drawing.toInterfaceCoordsY(panCurrentY) - Drawing.drawing.toInterfaceCoordsY(zoomCurrentY), 2));
+			double zx = Drawing.drawing.toInterfaceCoordsX(zoomCurrentX);
+			double zy = Drawing.drawing.toInterfaceCoordsY(zoomCurrentY);
+			double d = Math.sqrt(Math.pow(px - zx, 2) + Math.pow(py - zy, 2));
 
 			if (prevZoomDown)
 			{
+				zoom *= d / zoomDist;
+				zoom = Math.max(0.75, Math.min(Math.max(2 / (Drawing.drawing.unzoomedScale / Drawing.drawing.interfaceScale), 1), zoom));
+				Drawing.drawing.scale = getScale();
+
+				panCurrentX = Drawing.drawing.toGameCoordsX(px);
+				panCurrentY = Drawing.drawing.toGameCoordsY(py);
+				zoomCurrentX = Drawing.drawing.toGameCoordsX(zx);
+				zoomCurrentY = Drawing.drawing.toGameCoordsY(zy);
+
+				double x = (panCurrentX + zoomCurrentX) / 2;
+				double y = (panCurrentY + zoomCurrentY) / 2;
 				offsetX += x - panX;
 				offsetY += y - panY;
-				zoom *= d / zoomDist;
 			}
 
+			panCurrentX = Drawing.drawing.toGameCoordsX(px);
+			panCurrentY = Drawing.drawing.toGameCoordsY(py);
+			zoomCurrentX = Drawing.drawing.toGameCoordsX(zx);
+			zoomCurrentY = Drawing.drawing.toGameCoordsY(zy);
+
+			double x = (panCurrentX + zoomCurrentX) / 2;
+			double y = (panCurrentY + zoomCurrentY) / 2;
 			panX = x;
 			panY = y;
 			zoomDist = d;
@@ -1053,9 +1072,27 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		Game.removeMovables.clear();
 
 		for (Obstacle o: Game.removeObstacles)
+		{
 			o.removed = true;
+			Drawing.drawing.terrainRenderer.remove(o);
 
-		Game.obstacles.removeAll(Game.removeObstacles);
+			int x = (int) (o.posX / Game.tile_size);
+			int y = (int) (o.posY / Game.tile_size);
+
+			if (x >= 0 && x < Game.currentSizeX && y >= 0 && y < Game.currentSizeY && Game.enable3d)
+			{
+				Game.redrawGroundTiles.add(new int[]{x, y});
+
+				if (o.bulletCollision)
+				{
+					Game.game.solidGrid[x][y] = false;
+					Game.game.unbreakableGrid[x][y] = false;
+				}
+			}
+
+			Game.obstacles.remove(o);
+		}
+
 		Game.removeObstacles.clear();
 	}
 
@@ -1586,7 +1623,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 								mouseObstacle.setMetadata(mouseObstacleGroup + "");
 
 							this.actions.add(new Action.ActionObstacle(o, true));
-							Game.obstacles.add(o);
+							Game.addObstacle(o);
 
 							if (!batch)
 								Drawing.drawing.playVibration("click");
@@ -1982,36 +2019,32 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		Drawing.drawing.fillShadedInterfaceRect(Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY / 2,
 				mul * Game.game.window.absoluteWidth / Drawing.drawing.interfaceScale, mul * Game.game.window.absoluteHeight / Drawing.drawing.interfaceScale);
 
-		if (Game.enable3d)
-			Drawing.drawing.beginTerrainRenderers();
-
 		this.drawDefaultBackground();
-
-		for (Effect e: Game.tracks)
-			drawables[0].add(e);
 
 		for (Movable m: Game.movables)
 			drawables[m.drawLevel].add(m);
 
-		for (int i = 0; i < drawables.length; i++)
+		if (Game.enable3d)
 		{
-			for (Obstacle o : Game.obstacles)
+			for (int i = 0; i < drawables.length; i++)
 			{
-				if (o.drawLevel == i)
+				for (Obstacle o : Game.obstacles)
 				{
-					if (o.batchDraw && Game.enable3d)
-						o.draw();
-					else
+					if (o.drawLevel == i && !o.batchDraw)
+					{
 						drawables[i].add(o);
+					}
 				}
 			}
+		}
+		else
+		{
+			for (Obstacle o : Game.obstacles)
+				drawables[o.drawLevel].add(o);
 		}
 
 		for (Effect e: Game.effects)
 			drawables[7].add(e);
-
-		if (Game.enable3d)
-			Drawing.drawing.drawTerrainRenderers();
 
 		for (int i = 0; i < this.drawables.length; i++)
 		{
@@ -2136,6 +2169,22 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 			{
 				Drawing.drawing.displayInterfaceText(this.centerX, Drawing.drawing.interfaceSizeY - this.objYSpace * 2 - 0, "Pinch to zoom");
 				recenter.draw();
+//				if (panDown)
+//				{
+//					Drawing.drawing.setColor(255, 255, 255);
+//					Drawing.drawing.setInterfaceFontSize(24);
+//					Drawing.drawing.fillOval(this.panCurrentX, this.panCurrentY, 40, 40);
+//					Drawing.drawing.drawInterfaceText(100, 100, (int) this.panCurrentX + " " + (int) this.panCurrentY);
+//				}
+//				Drawing.drawing.setColor(255, 0, 255);
+//				Drawing.drawing.fillOval(this.panX, this.panY, 40, 40);
+//				Drawing.drawing.drawInterfaceText(100, 200, (int) this.panX + " " + (int) this.panY);
+//				if (zoomDown)
+//				{
+//					Drawing.drawing.setColor(0, 255, 255);
+//					Drawing.drawing.fillOval(this.zoomCurrentX, this.zoomCurrentY, 40, 40);
+//					Drawing.drawing.drawInterfaceText(100, 300, (int) this.zoomCurrentX + " " + (int) this.zoomCurrentY);
+//				}
 			}
 			else
 			{
@@ -2666,7 +2715,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 			Button b = new Button(0, 0, 350, 40, items.get(i).name, () ->
 			{
-				ScreenEditItem s = new ScreenEditItem(items.get(j), (IItemScreen) Game.screen, omitPrice, true);
+				ScreenItemEditor s = new ScreenItemEditor(items.get(j), (IItemScreen) Game.screen, omitPrice, true);
 				s.drawBehindScreen = true;
 				Game.screen = s;
 			});
@@ -2716,7 +2765,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				if (add)
 					Game.removeObstacles.add(this.obstacle);
 				else
-					Game.obstacles.add(this.obstacle);
+					Game.addObstacle(this.obstacle);
 			}
 
 			@Override
@@ -2725,7 +2774,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				if (!add)
 					Game.removeObstacles.add(this.obstacle);
 				else
-					Game.obstacles.add(this.obstacle);
+					Game.addObstacle(this.obstacle);
 			}
 		}
 
@@ -2980,7 +3029,11 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 			@Override
 			public void undo()
 			{
-				Game.obstacles.addAll(this.obstacles);
+				for (Obstacle o: this.obstacles)
+				{
+					Game.addObstacle(o);
+				}
+
 				Game.movables.addAll(this.tanks);
 				this.deselect.undo();
 			}
@@ -2990,11 +3043,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 			{
 				for (int i = 0; i < Game.obstacles.size(); i++)
 				{
-					for (Obstacle o : this.obstacles)
-					{
-						if (Game.obstacles.get(i).equals(o))
-							Game.obstacles.remove(i);
-					}
+					Game.removeObstacles.addAll(this.obstacles);
 				}
 
 				for (int i = 0; i < Game.movables.size(); i++)
@@ -3020,4 +3069,45 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		paused = true;
 		Game.screen = new OverlayConfirmSave(Game.screen, this);
 	}
+
+	@Override
+	public void setupLights()
+	{
+		for (Obstacle o: Game.obstacles)
+		{
+			if (o instanceof IDrawableLightSource && ((IDrawableLightSource) o).lit())
+			{
+				double[] l = ((IDrawableLightSource) o).getLightInfo();
+				l[0] = Drawing.drawing.gameToAbsoluteX(o.posX, 0);
+				l[1] = Drawing.drawing.gameToAbsoluteY(o.posY, 0);
+				l[2] = (o.startHeight + 25) * Drawing.drawing.scale;
+				Panel.panel.lights.add(l);
+			}
+		}
+
+		for (Movable o: Game.movables)
+		{
+			if (o instanceof IDrawableLightSource && ((IDrawableLightSource) o).lit())
+			{
+				double[] l = ((IDrawableLightSource) o).getLightInfo();
+				l[0] = Drawing.drawing.gameToAbsoluteX(o.posX, 0);
+				l[1] = Drawing.drawing.gameToAbsoluteY(o.posY, 0);
+				l[2] = (o.posZ + 25) * Drawing.drawing.scale;
+				Panel.panel.lights.add(l);
+			}
+		}
+
+		for (Effect o: Game.effects)
+		{
+			if (o instanceof IDrawableLightSource && ((IDrawableLightSource) o).lit())
+			{
+				double[] l = ((IDrawableLightSource) o).getLightInfo();
+				l[0] = Drawing.drawing.gameToAbsoluteX(o.posX, 0);
+				l[1] = Drawing.drawing.gameToAbsoluteY(o.posY, 0);
+				l[2] = (o.posZ) * Drawing.drawing.scale;
+				Panel.panel.lights.add(l);
+			}
+		}
+	}
+
 }

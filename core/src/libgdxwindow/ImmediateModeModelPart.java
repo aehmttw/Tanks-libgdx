@@ -13,8 +13,6 @@ public class ImmediateModeModelPart extends ModelPart
     @Override
     public void draw(double posX, double posY, double posZ, double sX, double sY, double sZ, double yaw, double pitch, double roll, boolean depthTest)
     {
-        //if (true) return;
-
         window.shapeRenderer.setBatchMode(true, false, depthTest);
 
         double r = window.colorR * 255;
@@ -28,8 +26,8 @@ public class ImmediateModeModelPart extends ModelPart
             {
                 if (this.material.depthMask != depthMask)
                 {
-                    window.shapeRenderer.setBatchMode(false, false, true);
-                    window.shapeRenderer.setBatchMode(true, false, true, false, this.material.depthMask);
+                    window.shapeRenderer.setBatchMode(false, false, depthTest);
+                    window.shapeRenderer.setBatchMode(true, false, depthTest, false, this.material.depthMask);
                     depthMask = this.material.depthMask;
                 }
 
@@ -50,8 +48,6 @@ public class ImmediateModeModelPart extends ModelPart
     @Override
     public void draw(double posX, double posY, double sX, double sY, double yaw)
     {
-        //if (true) return;
-
         window.shapeRenderer.setBatchMode(true, false, false);
 
         double r = window.colorR * 255;
@@ -65,8 +61,8 @@ public class ImmediateModeModelPart extends ModelPart
             {
                 if (this.material.depthMask != depthMask)
                 {
-                    window.shapeRenderer.setBatchMode(false, false, true);
-                    window.shapeRenderer.setBatchMode(true, false, true, false, this.material.depthMask);
+                    window.shapeRenderer.setBatchMode(false, false, false);
+                    window.shapeRenderer.setBatchMode(true, false, false, false, this.material.depthMask);
                     depthMask = this.material.depthMask;
                 }
 

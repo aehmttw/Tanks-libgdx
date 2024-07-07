@@ -100,6 +100,12 @@ public class ScreenChangelog extends Screen
     {
         this.drawDefaultBackground();
 
+        if (pageContents == null)
+            pageContents = pages.get(currentPage).split("\n");
+
+        next.enabled = currentPage < pages.size() - 1;
+        previous.enabled = currentPage > 0;
+
         if (next.enabled || previous.enabled)
         {
             next.draw();
@@ -417,83 +423,6 @@ public class ScreenChangelog extends Screen
                                     "Fixed a bug with spawning tanks in multiplayer\n"
                     });
 
-            new Changelog("v1.4.2a", new String[]
-                    {
-                            "*What's new in Tanks v1.4.2a:\n\n" +
-                                    "Added mouse spotlight option (to see target in 3d)\n" +
-                                    "Bug fixes and other minor improvements\n"
-                    });
-
-            new Changelog("v1.5.a", new String[]
-                    {
-                            "*What's new in Tanks v1.5.a:\n\n" +
-                                    "New minigame mode: arcade mode, featuring:\n" +
-                                    "- Continuously spawning enemy tank waves\n" +
-                                    "- Respawn if you die\n" +
-                                    "- Time limit of 2 minutes\n" +
-                                    "- A rampage system for destroying tanks in a row\n" +
-                                    "- Frenzy mode: destroy all you can when time runs out!\n"
-                    });
-
-            new Changelog("v1.5.b", new String[]
-                    {
-                            "*What's new in Tanks v1.5.b:\n\n" +
-                                    "Changes to arcade mode:\n" +
-                                    "- Changed tank crate appearance with indicator\n" +
-                                    "- Added bonuses at the end of the game!\n" +
-                                    "- Removed red and blue tanks from arcade mode\n" +
-                                    "- Tanks no longer drop close to the player\n" +
-                                    "- Limited the max number of tanks at once\n" +
-                                    "Changed fireworks appearance\n"
-                    });
-
-            new Changelog("v1.5.c", new String[]
-                    {
-                            "*What's new in Tanks v1.5.c:\n\n" +
-                                    "Added item drops to arcade mode\n" +
-                                    "Improved arcade mode ending screen\n" +
-                                    "Added more arcade mode bonuses\n" +
-                                    "Changed fireworks appearance\n"
-                    });
-
-            new Changelog("v1.5.d", new String[]
-                    {
-                            "*What's new in Tanks v1.5.d:\n\n" +
-                                "*Arcade mode:\n\n" +
-                                    "Arcade mode now supports multiplayer\n" +
-                                    "Added item pick up animation\n" +
-                                    "Extended time limit by 12 seconds (to match song length)\n" +
-                                    "The hotbar now shows your chain timer\n" +
-                                    "Updated arcade mode bonuses\n\n" +
-                                "*Crusades:\n\n" +
-                                    "Font is now varied across statistics for readability\n" +
-                                    "Added crusade descriptions for built-in crusades\n" +
-                                    "Built-in crusades now track your best completion time\n" +
-                                    "Completed crusade runs can be compared to your best run\n\n",
-                                "*More:\n\n" +
-                                    "Updated menu music\n" +
-                                    "Added item switching indicator on tank\n" +
-                                    "Bullets now display through terrain\n" +
-                                    "Added new profile customization section to options\n" +
-                                    "You can now use a custom tank color in singleplayer\n" +
-                                    "A ton of bug fixes and other minor improvements\n"
-                    });
-
-            new Changelog("v1.5.e", new String[]
-                    {
-                            "*What's new in Tanks v1.5.e:\n\n" +
-                                    "Updated tutorial to be more exciting\n" +
-                                    "Added descriptions for minigames\n" +
-                                    "You can now see your records directly from the crusade screen\n" +
-                                    "Reorganized options screens\n" +
-                                    "Added 30 FPS deterministic mode\n" +
-                                    "Added short invulnerability on respawning in arcade mode\n" +
-                                    "Removed laser from versus mode\n" +
-                                    "Tanks will not explode on death if killed right after spawning\n" +
-                                    "A secret easter egg is more interesting now...\n" +
-                                    "A ton of bug fixes and other minor improvements\n"
-                    });
-
             new Changelog("v1.5.0", new String[]
                     {
                             "*What's new in Tanks v1.5.0:\n\n" +
@@ -528,6 +457,24 @@ public class ScreenChangelog extends Screen
                                     "Bug fixes and other minor improvements\n"
                     }
                     );
+
+            new Changelog("v1.5.1", new String[]
+                    {
+                            "*What's new in Tanks v1.5.1:\n\n" +
+                                    "Bug fixes\n"
+                    }
+            );
+
+            new Changelog("v1.5.2", new String[]
+                    {
+                            "*What's new in Tanks v1.5.2:\n\n" +
+                                    "Improved and adjusted tank AI\n" +
+                                    "Added new 'Bullet avoid type' to tank customization\n" +
+                                    "Added 'Sidewind' and 'Backwind' sight behaviors\n" +
+                                    "Added all the missing features to the mobile version\n" +
+                                    "Bug fixes and other minor improvements\n"
+                    }
+            );
 
         }
     }

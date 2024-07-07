@@ -9,6 +9,7 @@ import com.badlogic.gdx.backends.iosrobovm.IOSFiles;
 import org.robovm.apple.avfoundation.AVAudioSession;
 import org.robovm.apple.coreanimation.CADisplayLink;
 import org.robovm.apple.foundation.*;
+import org.robovm.apple.glkit.GLKViewDrawableDepthFormat;
 import org.robovm.apple.glkit.GLKViewDrawableMultisample;
 import org.robovm.apple.uikit.*;
 import org.robovm.objc.Selector;
@@ -33,6 +34,7 @@ public class IOSLauncher extends IOSApplication.Delegate
         config.useCompass = false;
         config.allowIpod = true;
         config.preferredFramesPerSecond = 120;
+        config.depthFormat = GLKViewDrawableDepthFormat._24;
 
         if (Game.antialiasing)
         {

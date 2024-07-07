@@ -1,17 +1,17 @@
 package tanks.tank;
 
 import tanks.*;
-import tanks.network.event.EventMineChangeTimer;
-import tanks.network.event.EventMineRemove;
 import tanks.gui.IFixedMenu;
 import tanks.gui.Scoreboard;
 import tanks.gui.screen.ScreenPartyLobby;
 import tanks.hotbar.item.ItemMine;
+import tanks.network.event.EventMineChangeTimer;
+import tanks.network.event.EventMineRemove;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class Mine extends Movable implements IAvoidObject
+public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
 {
     public static double mine_size = 30;
     public static double mine_radius = Game.tile_size * 2.5;
@@ -26,6 +26,7 @@ public class Mine extends Movable implements IAvoidObject
     public double triggeredTimer = 50;
     public double damage = 2;
     public boolean destroysObstacles = true;
+    public boolean destroysBullets = true;
 
     public double radius = mine_radius;
     public Tank tank;
@@ -33,11 +34,17 @@ public class Mine extends Movable implements IAvoidObject
     public double cooldown = 0;
     public int lastBeep = Integer.MAX_VALUE;
 
+    public double knockbackRadius = this.radius * 2;
+    public double bulletKnockback = 0;
+    public double tankKnockback = 0;
+
     public int networkID = -1;
 
     public static int currentID = 0;
     public static ArrayList<Integer> freeIDs = new ArrayList<>();
     public static HashMap<Integer, Mine> idMap = new HashMap<>();
+
+    public double[] lightInfo = new double[]{0, 0, 0, 0, 0, 0, 0};
 
     public Mine(double x, double y, double timer, Tank t, ItemMine item)
     {
@@ -115,7 +122,7 @@ public class Mine extends Movable implements IAvoidObject
             for (double i = height; i < height + 6; i++)
             {
                 double frac = ((i - height + 1) / 6 + 1) / 2;
-                Drawing.drawing.setColor(this.outlineColorR * frac, this.outlineColorG  * frac, this.outlineColorB * frac, 255, 0.5);
+                Drawing.drawing.setColor(this.outlineColorR * frac, this.outlineColorG * frac, this.outlineColorB * frac, 255, 0.5);
                 Drawing.drawing.fillOval(this.posX, this.posY, this.posZ + i + 1.5, this.size, this.size, true, false);
             }
 
@@ -141,6 +148,18 @@ public class Mine extends Movable implements IAvoidObject
             Drawing.drawing.fillOval(this.posX, this.posY, this.posZ + height + 7.5, this.size * 0.8, this.size * 0.8, true, false);
         else
             Drawing.drawing.fillOval(this.posX, this.posY, this.size * 0.8, this.size * 0.8);
+
+//        if (this.tankKnockback > 0 || this.bulletKnockback > 0)
+//        {
+//            Drawing.drawing.setColor(255, 0, 255, 64);
+//            drawRange2D(this.posX, this.posY, this.knockbackRadius);
+//        }
+//
+//        if (this.damage > 0)
+//        {
+//            Drawing.drawing.setColor(255, 0, 0, 64);
+//            drawRange2D(this.posX, this.posY, this.radius);
+//        }
     }
 
     @Override
@@ -157,7 +176,7 @@ public class Mine extends Movable implements IAvoidObject
         int beepTime = ((int)this.timer / 10);
         if (this.timer <= 150 && beepTime % 2 == 1 && this.lastBeep != beepTime && this.tank == Game.playerTank)
         {
-            Drawing.drawing.playSound("beep.ogg", 1f, 0.25f);
+            Drawing.drawing.playSound("beep.ogg", 1f);
             this.lastBeep = beepTime;
         }
 
@@ -213,5 +232,79 @@ public class Mine extends Movable implements IAvoidObject
     public double getSeverity(double posX, double posY)
     {
         return this.timer;
+    }
+
+    public static void drawRange(double posX, double posY, double size)
+    {
+        int faces = (int) (size + 5);
+        double r = Drawing.drawing.currentColorR;
+        double g = Drawing.drawing.currentColorG;
+        double b = Drawing.drawing.currentColorB;
+        double a = Drawing.drawing.currentColorA;
+
+        Game.game.window.shapeRenderer.setBatchMode(true, true, true, false, false);
+        for (int f = 0; f < faces; f++)
+        {
+            for (int i = 0; i <= 10; i++)
+            {
+                double hfrac = i / 10.0;
+                double hfrac2 = (i + 1) / 10.0;
+                double height = Math.sin(hfrac);
+                double pitchMul = Math.cos(hfrac);
+                double height2 = Math.sin(hfrac2);
+                double pitchMul2 = Math.cos(hfrac2);
+
+                double angle = f * Math.PI * 2 / faces;
+                double angle2 = (f + 1) * Math.PI * 2 / faces;
+                Drawing.drawing.setColor(r, g, b, (1 - hfrac) * a, 1);
+                Drawing.drawing.addVertex(posX + Math.cos(angle) * size * pitchMul, posY + Math.sin(angle) * size * pitchMul, height * size);
+                Drawing.drawing.addVertex(posX + Math.cos(angle2) * size * pitchMul, posY + Math.sin(angle2) * size * pitchMul, height * size);
+                Drawing.drawing.setColor(r, g, b, (1 - hfrac2) * a, 1);
+                Drawing.drawing.addVertex(posX + Math.cos(angle2) * size * pitchMul2, posY + Math.sin(angle2) * size * pitchMul2, height2 * size);
+                Drawing.drawing.addVertex(posX + Math.cos(angle) * size * pitchMul2, posY + Math.sin(angle) * size * pitchMul2, height2 * size);
+            }
+        }
+        Game.game.window.shapeRenderer.setBatchMode(false, true, false);
+    }
+
+    public static void drawRange2D(double posX, double posY, double size)
+    {
+        int faces = (int) (size + 5);
+        double r = Drawing.drawing.currentColorR;
+        double g = Drawing.drawing.currentColorG;
+        double b = Drawing.drawing.currentColorB;
+        double a = Drawing.drawing.currentColorA;
+
+        Game.game.window.shapeRenderer.setBatchMode(true, true, false);
+        for (int f = 0; f < faces; f++)
+        {
+            double angle = f * Math.PI * 2 / faces;
+            double angle2 = (f + 1) * Math.PI * 2 / faces;
+            double inner = 0.8;
+            Drawing.drawing.setColor(r, g, b, a, 1);
+            Drawing.drawing.addVertex(posX + Math.cos(angle) * size, posY + Math.sin(angle) * size, 0);
+            Drawing.drawing.addVertex(posX + Math.cos(angle2) * size, posY + Math.sin(angle2) * size, 0);
+            Drawing.drawing.setColor(r, g, b, 0, 1);
+            Drawing.drawing.addVertex(posX + Math.cos(angle2) * size * inner, posY + Math.sin(angle2) * size * inner, 0);
+            Drawing.drawing.addVertex(posX + Math.cos(angle) * size * inner, posY + Math.sin(angle) * size * inner, 0);
+        }
+        Game.game.window.shapeRenderer.setBatchMode(false, true, false);
+    }
+
+    @Override
+    public boolean lit()
+    {
+        return Game.fancyLights;
+    }
+
+    @Override
+    public double[] getLightInfo()
+    {
+        this.lightInfo[3] = 2;
+
+        this.lightInfo[4] = this.outlineColorR;
+        this.lightInfo[5] = this.outlineColorG;
+        this.lightInfo[6] = this.outlineColorB;
+        return this.lightInfo;
     }
 }

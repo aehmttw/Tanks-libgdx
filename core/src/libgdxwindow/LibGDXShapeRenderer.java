@@ -23,7 +23,7 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
 
         int sides = Math.min((int) (sX + sY) / 4 + 5, 100000);
 
-        this.window.setDrawMode(GL20.GL_TRIANGLES, false, true, sides * 3);
+        this.window.setDrawMode(GL20.GL_TRIANGLES, false, this.window.colorA >= 1, sides * 3);
         double step = Math.PI * 2 / sides;
 
         float pX =  (float) (x + Math.cos(0) * sX / 2);
@@ -82,7 +82,59 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
     @Override
     public void fillFacingOval(double x, double y, double z, double sX, double sY, boolean depthTest)
     {
+        x += sX / 2;
+        y += sY / 2;
 
+        int sides = (int) Math.min((sX + sY + Math.max(z / 20, 0)) / 4 + 5, 100000);
+
+        this.window.setDrawMode(GL20.GL_TRIANGLES, depthTest, this.window.colorA >= 1, sides * 3);
+        double step = Math.PI * 2 / sides;
+
+        double ox = Math.cos(0) * sX / 2;
+        double oy = Math.sin(0) * sY / 2;
+        double d = 0;
+        for (int n = 0; n < sides; n++)
+        {
+            d += step;
+
+            this.window.renderer.color(this.window.color);
+            this.window.renderer.vertex((float) x, (float) y, (float) z);
+            this.window.renderer.color(this.window.color);
+            this.window.renderer.vertex((float) (x + ox * this.window.bbx1 + oy * this.window.bbx2), (float) (y + ox * this.window.bby1 + oy * this.window.bby2), (float) (z + ox * this.window.bbz1 + oy * this.window.bbz2));
+            ox = (float) (Math.cos(d) * sX / 2);
+            oy = (float) (Math.sin(d) * sY / 2);
+            this.window.renderer.color(this.window.color);
+            this.window.renderer.vertex((float) (x + ox * this.window.bbx1 + oy * this.window.bbx2), (float) (y + ox * this.window.bby1 + oy * this.window.bby2), (float) (z + ox * this.window.bbz1 + oy * this.window.bbz2));
+        }
+    }
+
+    @Override
+    public void fillFacingOval(double x, double y, double z, double sX, double sY, double oZ, boolean depthTest)
+    {
+        x += sX / 2;
+        y += sY / 2;
+
+        int sides = (int) Math.min((sX + sY + Math.max(z / 20, 0)) / 4 + 5, 100000);
+
+        this.window.setDrawMode(GL20.GL_TRIANGLES, depthTest, this.window.colorA >= 1, sides * 3);
+        double step = Math.PI * 2 / sides;
+
+        double ox = Math.cos(0) * sX / 2;
+        double oy = Math.sin(0) * sY / 2;
+        double d = 0;
+        for (int n = 0; n < sides; n++)
+        {
+            d += step;
+
+            this.window.renderer.color(this.window.color);
+            this.window.renderer.vertex((float) x, (float) y, (float) z);
+            this.window.renderer.color(this.window.color);
+            this.window.renderer.vertex((float) (x + ox * this.window.bbx1 + oy * this.window.bbx2 + oZ * this.window.bbx3), (float) (y + ox * this.window.bby1 + oy * this.window.bby2 + oZ * this.window.bby3), (float) (z + ox * this.window.bbz1 + oy * this.window.bbz2 + oZ * this.window.bbz3));
+            ox = (float) (Math.cos(d) * sX / 2);
+            oy = (float) (Math.sin(d) * sY / 2);
+            this.window.renderer.color(this.window.color);
+            this.window.renderer.vertex((float) (x + ox * this.window.bbx1 + oy * this.window.bbx2 + oZ * this.window.bbx3), (float) (y + ox * this.window.bby1 + oy * this.window.bby2 + oZ * this.window.bby3), (float) (z + ox * this.window.bbz1 + oy * this.window.bbz2 + oZ * this.window.bbz3));
+        }
     }
 
     @Override
@@ -100,14 +152,29 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
         int sides = Math.min((int) (sX + sY) / 16 + 5, 100000);
 
         if (!shade)
-            this.window.color = Color.toFloatBits((float)(this.window.colorR * this.window.colorA), (float)(this.window.colorG * this.window.colorA), (float) (this.window.colorB * this.window.colorA), 1);
+        {
+            this.window.color.r = (float) (this.window.colorR * this.window.colorA);
+            this.window.color.g = (float) (this.window.colorG * this.window.colorA);
+            this.window.color.b = (float) (this.window.colorB * this.window.colorA);
+            this.window.color.a = 1;
+        }
         else
-            this.window.color = Color.toFloatBits((float) this.window.colorR, (float) this.window.colorG, (float) this.window.colorB, (float) this.window.colorA);
+        {
+            this.window.color.r = (float) (this.window.colorR);
+            this.window.color.g = (float) (this.window.colorG);
+            this.window.color.b = (float) (this.window.colorB);
+            this.window.color.a = (float) this.window.colorA;
+        }
 
-        float transparent = this.window.transparent;
+        Color transparent = this.window.transparent.cpy();
 
         if (shade)
-            transparent = Color.toFloatBits((float) this.window.colorR, (float) this.window.colorG, (float) this.window.colorB, 0);
+        {
+            transparent.r = (float) (this.window.colorR);
+            transparent.g = (float) (this.window.colorG);
+            transparent.b = (float) (this.window.colorB);
+            transparent.a = 0;
+        }
 
         this.window.setDrawMode(GL20.GL_TRIANGLES, false, false, !shade, light,sides * 3);
         double step = Math.PI * 2 / sides;
@@ -128,6 +195,11 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
             this.window.renderer.color(this.window.color);
             this.window.renderer.vertex((float) x, (float) y, 0);
         }
+
+        this.window.color.r = (float) (this.window.colorR);
+        this.window.color.g = (float) (this.window.colorG);
+        this.window.color.b = (float) (this.window.colorB);
+        this.window.color.a = (float) this.window.colorA;
     }
 
     @Override
@@ -145,16 +217,32 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
         int sides = Math.min((int) (sX + sY + Math.max(z / 20, 0)) / 16 + 5, 100000);
 
         if (!shade)
-            this.window.color = Color.toFloatBits((float) (this.window.colorR * this.window.colorA), (float) (this.window.colorG * this.window.colorA), (float) (this.window.colorB * this.window.colorA), 1);
+        {
+            this.window.color.r = (float) (this.window.colorR * this.window.colorA);
+            this.window.color.g = (float) (this.window.colorG * this.window.colorA);
+            this.window.color.b = (float) (this.window.colorB * this.window.colorA);
+            this.window.color.a = 1;
+        }
         else
-            this.window.color = Color.toFloatBits((float) this.window.colorR, (float) this.window.colorG, (float) this.window.colorB, (float) this.window.colorA);
+        {
+            this.window.color.r = (float) (this.window.colorR);
+            this.window.color.g = (float) (this.window.colorG);
+            this.window.color.b = (float) (this.window.colorB);
+            this.window.color.a = (float) this.window.colorA;
+        }
 
-        float transparent = this.window.transparent;
+        Color transparent = this.window.transparent.cpy();
 
         if (shade)
-            transparent = Color.toFloatBits((float) this.window.colorR, (float) this.window.colorG, (float) this.window.colorB, 0);
+        {
+            transparent.r = (float) (this.window.colorR);
+            transparent.g = (float) (this.window.colorG);
+            transparent.b = (float) (this.window.colorB);
+            transparent.a = 0;
+        }
 
         this.window.setDrawMode(GL20.GL_TRIANGLES, depthTest, false, !shade, light, sides * 3);
+
         double step = Math.PI * 2 / sides;
 
         float pX =  (float) (x + Math.cos(0) * sX / 2);
@@ -173,18 +261,82 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
             this.window.renderer.color(transparent);
             this.window.renderer.vertex(pX, pY, (float) z);
         }
+
+        this.window.color.r = (float) (this.window.colorR);
+        this.window.color.g = (float) (this.window.colorG);
+        this.window.color.b = (float) (this.window.colorB);
+        this.window.color.a = (float) this.window.colorA;
     }
 
     @Override
+    public void fillFacingGlow(double x, double y, double z, double sX, double sY, boolean depthTest)
+    {
+        this.fillFacingGlow(x, y, z, sX, sY, depthTest,false);
+    }
+
     public void fillFacingGlow(double x, double y, double z, double sX, double sY, boolean depthTest, boolean shade)
     {
-
+        this.fillFacingGlow(x, y, z, sX, sY, depthTest, shade,false);
     }
 
     @Override
     public void fillFacingGlow(double x, double y, double z, double sX, double sY, boolean depthTest, boolean shade, boolean light)
     {
+        x += sX / 2;
+        y += sY / 2;
 
+        int sides = Math.min((int) (sX + sY + Math.max(z / 20, 0)) / 16 + 5, 100000);
+
+        if (!shade)
+        {
+            this.window.color.r = (float) (this.window.colorR * this.window.colorA);
+            this.window.color.g = (float) (this.window.colorG * this.window.colorA);
+            this.window.color.b = (float) (this.window.colorB * this.window.colorA);
+            this.window.color.a = 1;
+        }
+        else
+        {
+            this.window.color.r = (float) (this.window.colorR);
+            this.window.color.g = (float) (this.window.colorG);
+            this.window.color.b = (float) (this.window.colorB);
+            this.window.color.a = (float) this.window.colorA;
+        }
+
+        Color transparent = this.window.transparent.cpy();
+
+        if (shade)
+        {
+            transparent.r = (float) (this.window.colorR);
+            transparent.g = (float) (this.window.colorG);
+            transparent.b = (float) (this.window.colorB);
+            transparent.a = 0;
+        }
+
+        this.window.setDrawMode(GL20.GL_TRIANGLES, depthTest, false, !shade, light, sides * 3);
+
+        double step = Math.PI * 2 / sides;
+
+        double ox = Math.cos(0) * sX / 2;
+        double oy = Math.sin(0) * sY / 2;
+        double d = 0;
+        for (int n = 0; n < sides; n++)
+        {
+            d += step;
+
+            this.window.renderer.color(this.window.color);
+            this.window.renderer.vertex((float) x, (float) y, (float) z);
+            this.window.renderer.color(transparent);
+            this.window.renderer.vertex((float) (x + ox * this.window.bbx1 + oy * this.window.bbx2), (float) (y + ox * this.window.bby1 + oy * this.window.bby2), (float) (z + ox * this.window.bbz1 + oy * this.window.bbz2));
+            ox = Math.cos(d) * sX / 2;
+            oy = Math.sin(d) * sY / 2;
+            this.window.renderer.color(transparent);
+            this.window.renderer.vertex((float) (x + ox * this.window.bbx1 + oy * this.window.bbx2), (float) (y + ox * this.window.bby1 + oy * this.window.bby2), (float) (z + ox * this.window.bbz1 + oy * this.window.bbz2));
+        }
+
+        this.window.color.r = (float) (this.window.colorR);
+        this.window.color.g = (float) (this.window.colorG);
+        this.window.color.b = (float) (this.window.colorB);
+        this.window.color.a = (float) this.window.colorA;
     }
 
     @Override
@@ -197,12 +349,6 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
     public void fillGlow(double x, double y, double z, double sX, double sY, boolean depthTest)
     {
         this.fillGlow(x, y, z, sX, sY, depthTest, false);
-    }
-
-    @Override
-    public void fillFacingGlow(double x, double y, double z, double sX, double sY, boolean depthTest)
-    {
-
     }
 
     @Override
@@ -233,7 +379,7 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
     @Override
     public void fillRect(double x, double y, double width, double height)
     {
-        this.window.setDrawMode(GL20.GL_TRIANGLES, false, true, 6);
+        this.window.setDrawMode(GL20.GL_TRIANGLES, false, this.window.color.a >= 1, 6);
         this.window.renderer.color(this.window.color);
         this.window.renderer.vertex((float) x, (float) y, 0);
         this.window.renderer.color(this.window.color);
@@ -284,8 +430,8 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
         float height = (float) sY;
         float depth = (float) sZ;
 
-        float color2 = Color.toFloatBits((float) this.window.colorR * 0.8f, (float) this.window.colorG * 0.8f, (float) this.window.colorB * 0.8f, (float) this.window.colorA);
-        float color3 = Color.toFloatBits((float) this.window.colorR * 0.6f, (float) this.window.colorG * 0.6f, (float) this.window.colorB * 0.6f, (float) this.window.colorA);
+        Color color2 = new Color((float) this.window.colorR * 0.8f, (float) this.window.colorG * 0.8f, (float) this.window.colorB * 0.8f, (float) this.window.colorA);
+        Color color3 = new Color((float) this.window.colorR * 0.6f, (float) this.window.colorG * 0.6f, (float) this.window.colorB * 0.6f, (float) this.window.colorA);
 
         boolean depthMask = true;
         boolean glow = false;
@@ -459,8 +605,8 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
         float z = (float) posz;
         float sZ = (float) sizeZ;
 
-        float color2 = Color.toFloatBits((float) this.window.colorR * 0.8f, (float) this.window.colorG * 0.8f, (float) this.window.colorB * 0.8f, (float) this.window.colorA);
-        float color3 = Color.toFloatBits((float) this.window.colorR * 0.6f, (float) this.window.colorG * 0.6f, (float) this.window.colorB * 0.6f, (float) this.window.colorA);
+        Color color2 = new Color((float) this.window.colorR * 0.8f, (float) this.window.colorG * 0.8f, (float) this.window.colorB * 0.8f, (float) this.window.colorA);
+        Color color3 = new Color((float) this.window.colorR * 0.6f, (float) this.window.colorG * 0.6f, (float) this.window.colorB * 0.6f, (float) this.window.colorA);
 
         if ((options >> 6) % 2 == 0)
             this.window.setDrawMode(GL20.GL_TRIANGLES, true, true, 36);
@@ -622,79 +768,41 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
     @Override
     public void drawImage(double x, double y, double z, double sX, double sY, double u1, double v1, double u2, double v2, String image, boolean scaled, boolean depthtest)
     {
-        this.window.setDrawMode(7, depthtest, true, 0);
-
-        if (image.startsWith("/"))
-            image = image.substring(1);
-
-        Texture texture = this.window.textures.get(image);
-
-        if (texture == null)
-        {
-            texture = new Texture(Gdx.files.internal(image));
-            this.window.textures.put(image, texture);
-        }
-
-        double width = sX * (u2 - u1);
-        double height = sY * (v2 - v1);
-
-        if (scaled)
-        {
-            width *= texture.getWidth();
-            height *= texture.getHeight();
-        }
-
-        this.window.spriteBatch.getProjectionMatrix().translate(0, 0, (float) (z));
-        this.window.spriteBatch.begin();
-        this.window.spriteBatch.setColor((float) this.window.colorR, (float) this.window.colorG, (float) this.window.colorB, (float) this.window.colorA);
-        this.window.spriteBatch.draw(texture, (float) x, (float) y, (float) width, (float) height, (float) u1, (float) v1, (float) u2, (float) v2);
-        this.window.spriteBatch.end();
-        this.window.spriteBatch.getProjectionMatrix().translate(0, 0, (float) (-z));
-
-        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
-
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        this.window.beginLinkedImages(image, scaled, depthtest);
+        this.window.drawLinkedImage(x, y, z, sX, sY, u1, v1, u2, v2);
+        this.window.endLinkedImages();
     }
 
     @Override
     public void drawImage(double x, double y, double sX, double sY, String image, double rotation, boolean scaled)
     {
-        this.window.rotate(x, y, rotation);
-        this.drawImage(x - sX / 2, y - sY / 2, sX, sY, image, scaled);
-        this.window.rotate(x, y, -rotation);
+        drawImage(x, y, 0, sX, sY, 0, 0, 1, 1, image, rotation, scaled, false);
     }
 
     @Override
     public void drawImage(double x, double y, double z, double sX, double sY, String image, double rotation, boolean scaled)
     {
-        this.window.rotate(x, y, rotation);
-        this.drawImage(x - sX / 2, y - sY / 2, z, sX, sY, image, scaled);
-        this.window.rotate(x, y, -rotation);
+        drawImage(x, y, z, sX, sY, 0, 0, 1, 1, image, rotation, scaled, true);
     }
 
     @Override
     public void drawImage(double x, double y, double sX, double sY, double u1, double v1, double u2, double v2, String image, double rotation, boolean scaled)
     {
-        this.window.rotate(x, y, rotation);
-        this.drawImage(x - sX / 2, y - sY / 2, sX, sY, u1, v1, u2, v2, image, scaled);
-        this.window.rotate(x, y, -rotation);
+        drawImage(x, y, 0, sX, sY, u1, v1, u2, v2, image, rotation, scaled, false);
     }
 
     @Override
     public void drawImage(double x, double y, double z, double sX, double sY, double u1, double v1, double u2, double v2, String image, double rotation, boolean scaled)
     {
-        this.window.rotate(x, y, rotation);
-        this.drawImage(x - sX / 2, y - sY / 2, z, sX, sY, u1, v1, u2, v2, image, scaled);
-        this.window.rotate(x, y, -rotation);
+        drawImage(x, y, z, sX, sY, u1, v1, u2, v2, image, rotation, scaled, true);
     }
 
     @Override
     public void drawImage(double x, double y, double z, double sX, double sY, double u1, double v1, double u2, double v2, String image, double rotation, boolean scaled, boolean depthtest)
     {
-        this.window.rotate(x, y, rotation);
-        this.drawImage(x - sX / 2, y - sY / 2, z, sX, sY, u1, v1, u2, v2, image, scaled, depthtest);
-        this.window.rotate(x, y, -rotation);
+        this.window.beginLinkedImages(image, scaled, depthtest);
+        this.window.drawLinkedImage(x, y, z, sX, sY, u1, v1, u2, v2, rotation - Math.PI / 2);
+        this.window.endLinkedImages();
     }
 
     @Override

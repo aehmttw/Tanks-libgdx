@@ -3,21 +3,18 @@ package tanks.tank;
 import basewindow.IModel;
 import tanks.*;
 import tanks.bullet.*;
-import tanks.network.event.*;
 import tanks.gui.screen.ScreenGame;
 import tanks.hotbar.item.Item;
 import tanks.hotbar.item.ItemBullet;
+import tanks.network.event.*;
 import tanks.obstacle.Obstacle;
 import tanks.obstacle.ObstacleTeleporter;
 import tanks.registry.RegistryTank;
 
-import static tanks.tank.TankProperty.Category.*;
-
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Random;
+import java.util.*;
+
+import static tanks.tank.TankProperty.Category.*;
 
 /** This class is the 'skeleton' tank class.
  *  It can be extended and values can be changed to easily produce an AI for another tank.
@@ -25,7 +22,7 @@ import java.util.Random;
 public class TankAIControlled extends Tank
 {
 	/** The type which shows what direction the tank is moving. Clockwise and Counter Clockwise are for idle, while Aiming is for when the tank aims.*/
-	protected enum RotationPhase {clockwise, counterClockwise, aiming}
+	protected enum RotationPhase {clockwise, counter_clockwise, aiming}
 
 	// The following are properties which are used externally to determine the behavior settings of the tank.
 	// Simple modifications of tanks can just change these values to produce a desired behavior.
@@ -43,26 +40,43 @@ public class TankAIControlled extends Tank
 	@TankProperty(category = movementIdle, id = "motion_change_chance", name = "Turn chance", desc = "Chance of the tank to change the direction in which it is moving")
 	public double turnChance = 0.01;
 	/** Time waited when changing direction of motion*/
-	@TankProperty(category = movementIdle, id = "turn_pause_time", name = "Turn pause time", desc = "Time the tank pauses when changing directions")
+	@TankProperty(category = movementIdle, id = "turn_pause_time", name = "Turn pause time", desc = "Time the tank pauses when changing directions \n \n 1 time unit = 0.01 seconds")
 	public double turnPauseTime = 15;
 	/** Multiplier of time the tank will hide in a shrub*/
-	@TankProperty(category = movementIdle, id = "bush_hide_time", name = "Bush hide time", desc = "Time the tank will stop moving to hide in bushes")
+	@TankProperty(category = movementIdle, id = "bush_hide_time", name = "Bush hide time", desc = "Time the tank will stop moving to hide in bushes \n \n 1 time unit = 0.01 seconds")
 	public double bushHideTime = 350;
 
 	@TankProperty(category = movementIdle, id = "stay_near_parent", name = "Stay near parent", desc = "If spawned by another tank, whether this tank should try to stay near the tank that spawned it")
 	public boolean stayNearParent = false;
-	@TankProperty(category = movementIdle, id = "max_distance_from_parent", name = "Parent boundary", desc = "If stay near parent is set and this tank strays farther than this distance from the tank that spawned it, it will return to that tank")
+	@TankProperty(category = movementIdle, id = "max_distance_from_parent", name = "Parent boundary", desc = "If stay near parent is set and this tank strays farther than this distance from the tank that spawned it, it will return to that tank \n \n 1 tile = 50 units")
 	public double maxDistanceFromParent = 300;
 
 	@TankProperty(category = movementAvoid, id = "enable_bullet_avoidance", name = "Avoid bullets")
 	public boolean enableBulletAvoidance = true;
 	@TankProperty(category = movementAvoid, id = "enable_mine_avoidance", name = "Avoid mines")
 	public boolean enableMineAvoidance = true;
+	@TankProperty(category = movementAvoid, id = "avoid_seek_open_spaces", name = "Seek open spaces", desc = "If enabled, when this tank avoids farther bullets, it will seek out open spaces around it to make it harder to corner")
+	public boolean avoidanceSeekOpenSpaces = false;
+
+	/** The method used to avoid bullets
+	 *  Back off = move away from the bullet directly
+	 *  Dodge = move at an angle from the bullet
+	 *  Aggressive Dodge = move at an angle toward the bullet
+	 *  Intersect = move away from where bullet path will intersect tank; less accurate */
+	public enum BulletAvoidBehavior
+	{intersect, back_off, dodge, aggressive_dodge}
+
+	@TankProperty(category = movementAvoid, id = "bullet_avoid_behavior", name = "Bullet avoid behavior", desc = "Method the tank will use to avoid bullets \n " +
+			"\n Intersect: move away from where the bullet will hit the tank (less accurate) " +
+			"\n Back off: move away from the bullet (may back into corners) " +
+			"\n Dodge: move at an angle away from the bullet (more accurate)" +
+			"\n Aggressive dodge: move at an angle toward the bullet")
+	public BulletAvoidBehavior bulletAvoidBehvavior = BulletAvoidBehavior.intersect;
 	/** How close the tank needs to get to a mine to avoid it*/
 	@TankProperty(category = movementAvoid, id = "mine_avoid_sensitivity", name = "Mine sight radius", desc = "If the tank is within this fraction of a mine's radius, it will move away from the mine")
 	public double mineAvoidSensitivity = 1.5;
 	/** Time which the tank will avoid a bullet after the bullet is no longer aiming at the tank*/
-	@TankProperty(category = movementAvoid, id = "bullet_avoid_timer_base", name = "Bullet flee time", desc = "Time the tank will continue fleeing from a bullet until after it is no longer deemed a threat")
+	@TankProperty(category = movementAvoid, id = "bullet_avoid_timer_base", name = "Bullet flee time", desc = "Time the tank will continue fleeing from a bullet until after it is no longer deemed a threat \n \n 1 time unit = 0.01 seconds")
 	public double bulletAvoidTimerBase = 30;
 
 	/** If enabled, the tank may actively seek out enemies*/
@@ -72,18 +86,20 @@ public class TankAIControlled extends Tank
 	@TankProperty(category = movementPathfinding, id = "seek_chance", name = "Seek chance", desc = "Chance for this tank to decide to start navigating to its target")
 	public double seekChance = 0.001;
 	/** If set to true, when enters line of sight of target enemy, will stop pathfinding to it*/
-	@TankProperty(category = movementPathfinding, id = "stop_seeking_on_sight", name = "Stop on sight", desc = "If enabled, navigation to target will end when the this tank enters the target's line of sight")
+	@TankProperty(category = movementPathfinding, id = "stop_seeking_on_sight", name = "Stop on sight", desc = "If enabled, navigation to target will end when the this tank enters the target's line of sight \n \n 1 time unit = 0.01 seconds")
 	public boolean stopSeekingOnSight = false;
 	/** Increasing this value increases how stubborn the tank is in following a path*/
-	@TankProperty(category = movementPathfinding, id = "seek_timer_base", name = "Seek patience", desc = "If this tank is blocked from navigating its path for this amount of time, it will abandon the navigation")
+	@TankProperty(category = movementPathfinding, id = "seek_timer_base", name = "Seek patience", desc = "If this tank is blocked from navigating its path for this amount of time, it will abandon the navigation \n \n 1 time unit = 0.01 seconds")
 	public double seekTimerBase = 200;
 
 	/** Type of behavior tank should have if its target enemy is in line of sight
 	 * 	Approach = go towards the target enemy
 	 * 	Flee = go away from the target enemy
 	 * 	Strafe = move perpendicular to target enemy
+	 * 	Sidewind = move at a 45 degree angle toward target enemy
+	 * 	Backwind = move at a 45 degree angle away target enemy
 	 * 	Keep Distance = stay a particular distance away from the target enemy*/
-	public enum TargetEnemySightBehavior {approach, flee, strafe, keep_distance}
+	public enum TargetEnemySightBehavior {approach, flee, strafe, sidewind, backwind, keep_distance}
 
 	/** When set to true, will shoot a ray at the target enemy and enable reactions when the target enemy is in sight*/
 	@TankProperty(category = movementOnSight, id = "enable_looking_at_target_enemy", name = "Test sight", desc = "When enabled, the tank will test if its target is in its line of sight, and react accordingly")
@@ -91,20 +107,27 @@ public class TankAIControlled extends Tank
 	/** When set to true, will call reactToTargetEnemySight() when an unobstructed line of sight to the target enemy can be made */
 	public boolean enableTargetEnemyReaction = true;
 	/** Type of behavior tank should have if its target enemy is in line of sight*/
-	@TankProperty(category = movementOnSight, id = "target_enemy_sight_behavior", name = "Reaction", desc = "How the tank should react upon line of sight - either flee from the target, approach it, or strafe around it \n \n Requires 'Test sight' in 'Movement on sight' to take effect")
+	@TankProperty(category = movementOnSight, id = "target_enemy_sight_behavior", name = "Reaction", desc = "How the tank should react upon line of sight \n " +
+			"Approach - move directly toward the target \n " +
+			"Flee - move directly away from the target \n" +
+			"Strafe around it - move perpendicular to the target \n" +
+			"Sidewind - zig-zag toward the target \n" +
+			"Backwind - zig-zag away from the target \n" +
+			"Keep distance - move to or away from the target until at a specific distance to it \n" +
+			" \n \n Requires 'Test sight' in 'Movement on sight' to take effect")
 	public TargetEnemySightBehavior targetEnemySightBehavior = TargetEnemySightBehavior.approach;
 	/** If set to strafe upon seeing the target enemy, chance to change orbit direction*/
 	@TankProperty(category = movementOnSight, id = "strafe_direction_change_chance", name = "Strafe frequency", desc = "If set to strafe on line of sight, chance the tank should change the direction it is strafing around the target")
 	public double strafeDirectionChangeChance = 0.01;
 	/** If set to keep a distance, the tank will maintain that distance from its target upon sight*/
-	@TankProperty(category = movementOnSight, id = "target_sight_distance", name = "Target distance", desc = "If set to keep distance on line of sight, how far away the tank will try to sit from its target")
+	@TankProperty(category = movementOnSight, id = "target_sight_distance", name = "Target distance", desc = "If set to keep distance on line of sight, how far away the tank will try to sit from its target \n \n 1 tile = 50 units")
 	public double targetSightDistance = Game.tile_size * 6;
 
 	/** Tank to transform into*/
 	@TankProperty(category = transformationOnSight, id = "sight_transform_tank", name = "Transformation tank", desc = "When set, the tank will transform into this tank upon entering line of sight with its target")
 	public TankAIControlled sightTransformTank = null;
 	/** Time for tank to revert after losing line of sight */
-	@TankProperty(category = transformationOnSight, id = "sight_transformation_revert_time", name = "Sight revert time", desc = "After this much time has passed without the target in line of sight, the tank will revert back to its original form")
+	@TankProperty(category = transformationOnSight, id = "sight_transformation_revert_time", name = "Sight revert time", desc = "After this much time has passed without the target in line of sight, the tank will revert back to its original form \n \n 1 time unit = 0.01 seconds")
 	public double sightTransformRevertTime = 500;
 
 	/** Tank to transform into*/
@@ -118,7 +141,7 @@ public class TankAIControlled extends Tank
 	public boolean transformMimic = false;
 
 	/** Time for tank to revert after losing line of sight */
-	@TankProperty(category = transformationMimic, id = "mimic_revert_time", name = "Mimic revert time", desc = "After this much time has passed without the target in line of sight, the tank will revert back to its original form")
+	@TankProperty(category = transformationMimic, id = "mimic_revert_time", name = "Mimic revert time", desc = "After this much time has passed without the target in line of sight, the tank will revert back to its original form \n \n 1 time unit = 0.01 seconds")
 	public double mimicRevertTime = 200;
 	/** Range tanks must be in to be mimicked */
 	@TankProperty(category = transformationMimic, id = "mimic_range", name = "Mimic range", desc = "Maximum distance between this tank and a tank it mimics")
@@ -129,23 +152,23 @@ public class TankAIControlled extends Tank
 
 	//public double mineFuseLength = 1000;
 	/** Minimum time to lay a mine, added to mineTimerRandom * this.random.nextDouble()*/
-	@TankProperty(category = mines, id = "mine_timer_base", name = "Base cooldown", desc = "Minimum time between laying mines \n \n Note - tanks will not lay mines faster than their mine's base cooldown allows!")
+	@TankProperty(category = mines, id = "mine_timer_base", name = "Base cooldown", desc = "Minimum time between laying mines \n \n 1 time unit = 0.01 seconds \n \n Note - tanks will not lay mines faster than their mine's base cooldown allows!")
 	public double mineTimerBase = 2000;
 	/** Random factor in calculating time to lay a mine, multiplied by this.random.nextDouble() and added to mineTimerBase*/
-	@TankProperty(category = mines, id = "mine_timer_random", name = "Random cooldown", desc = "A random percentage between 0% and 100% of this time value is added to the base cooldown to get the time between laying mines \n \n Note - tanks will not lay mines faster than their mine's base cooldown allows!")
+	@TankProperty(category = mines, id = "mine_timer_random", name = "Random cooldown", desc = "A random percentage between 0% and 100% of this time value is added to the base cooldown to get the time between laying mines \n \n 1 time unit = 0.01 seconds \n \n Note - tanks will not lay mines faster than their mine's base cooldown allows!")
 	public double mineTimerRandom = 4000;
 
 	/** Minimum time in between shooting bullets, added to cooldownRandom * this.random.nextDouble()*/
-	@TankProperty(category = firingGeneral, id = "cooldown_base", name = "Base cooldown", desc = "Minimum time between firing bullets \n \n Note - tanks will not fire faster than their bullet's base cooldown allows!")
+	@TankProperty(category = firingGeneral, id = "cooldown_base", name = "Base cooldown", desc = "Minimum time between firing bullets \n \n 1 time unit = 0.01 seconds \n \n Note - tanks will not fire faster than their bullet's base cooldown allows!")
 	public double cooldownBase = 60;
 	/** Random factor in calculating time between shooting bullets, multiplied by this.random.nextDouble() and added to cooldownBase*/
 	@TankProperty(category = firingGeneral, id = "cooldown_random", name = "Random cooldown", desc = "A random percentage between 0% and 100% of this time value is added to the base cooldown to get the time between firing bullets \n \n Note - tanks will not fire faster than their bullet's base cooldown allows!")
 	public double cooldownRandom = 20;
 	/** After every successive shot, cooldown will go down by this fraction */
-	@TankProperty(category = firingGeneral, id = "cooldown_speedup", name = "Cooldown speedup", desc = "After every shot fired towards the same target, the cooldown will be decreased by this fraction of its current value.")
+	@TankProperty(category = firingGeneral, id = "cooldown_speedup", name = "Cooldown speedup", desc = "After every shot fired towards the same target, the cooldown will be decreased by this fraction of its current value")
 	public double cooldownSpeedup = 0;
 	/** Cooldown resets after no shots for this much time */
-	@TankProperty(category = firingGeneral, id = "cooldown_revert_time", name = "Revert time", desc = "If the tank is unable to fire for this much time, the effects of cooldown speedup will reset")
+	@TankProperty(category = firingGeneral, id = "cooldown_revert_time", name = "Revert time", desc = "If the tank is unable to fire for this much time, the effects of cooldown speedup will reset \n \n 1 time unit = 0.01 seconds")
 	public double cooldownRevertTime = 300;
 	/** If set, the tank will charge a shot and wait its cooldown on the spot as it prepares to shoot */
 	@TankProperty(category = firingGeneral, id = "charge_up", name = "Charge up", desc = "If enabled, the tank will only wait its cooldown while aiming at an enemy tank, playing a charge up animation")
@@ -179,10 +202,10 @@ public class TankAIControlled extends Tank
 	public double aimThreshold = 0.05;
 
 	/** Minimum time to randomly change idle direction, added to turretIdleTimerRandom * this.random.nextDouble()*/
-	@TankProperty(category = firingBehavior, id = "turret_idle_timer_base", name = "Turret base timer", desc = "Minimum time the turret will idly rotate in one direction before changing direction")
+	@TankProperty(category = firingBehavior, id = "turret_idle_timer_base", name = "Turret base timer", desc = "Minimum time the turret will idly rotate in one direction before changing direction \n \n 1 time unit = 0.01 seconds")
 	public double turretIdleTimerBase = 25;
 	/** Random factor in calculating time to randomly change idle direction, multiplied by this.random.nextDouble() and added to turretIdleTimerBase*/
-	@TankProperty(category = firingBehavior, id = "turret_idle_timer_random", name = "Turret random timer", desc = "A random percentage between 0% and 100% of this time value is added to the turret base rotation timer to get the time between changing idle rotation direction")
+	@TankProperty(category = firingBehavior, id = "turret_idle_timer_random", name = "Turret random timer", desc = "A random percentage between 0% and 100% of this time value is added to the turret base rotation timer to get the time between changing idle rotation direction \n \n 1 time unit = 0.01 seconds")
 	public double turretIdleTimerRandom = 500;
 
 	/** Speed at which the turret moves while idle*/
@@ -206,7 +229,7 @@ public class TankAIControlled extends Tank
 	@TankProperty(category = firingPattern, id = "shot_round_count", name = "Shots per round", desc = "Number of bullets to fire per round")
 	public int shotRoundCount = 1;
 	/** Time to fire a full fan*/
-	@TankProperty(category = firingPattern, id = "shot_round_time", name = "Round time", desc = "Amount of time it takes to fire a full round of bullets")
+	@TankProperty(category = firingPattern, id = "shot_round_time", name = "Round time", desc = "Amount of time it takes to fire a full round of bullets \n \n 1 time unit = 0.01 seconds")
 	public double shootRoundTime = 60;
 	/** Spread of a round*/
 	@TankProperty(category = firingPattern, id = "shot_round_spread", name = "Round spread", desc = "Total angle of spread of a round")
@@ -248,13 +271,13 @@ public class TankAIControlled extends Tank
 	public double spawnChance = 0.003;
 
 	/** Whether the tank should commit suicide when there are no allied tanks on the field */
-	@TankProperty(category = lastStand, id = "enable_suicide", name = "Last stand", desc = "When enabled and there are no allied tanks on the field, this tank will charge at the nearest enemy and explode")
+	@TankProperty(category = lastStand, id = "enable_suicide", name = "Last stand", desc = "When enabled and there are no allied tanks on the field, this tank will charge at the nearest enemy and explode. The explosion will use the properties of the tank's mine.")
 	public boolean enableSuicide = false;
 	/** Base factor in calculating suicide timer: base + random * Math.random()*/
-	@TankProperty(category = lastStand, id = "suicide_timer_base", name = "Base timer", desc = "Minimum time this tank will charge at its enemy before blowing up")
+	@TankProperty(category = lastStand, id = "suicide_timer_base", name = "Base timer", desc = "Minimum time this tank will charge at its enemy before blowing up \n \n 1 time unit = 0.01 seconds")
 	public double suicideTimerBase = 500;
 	/** Random factor in calculating suicide timer: base + random * Math.random() */
-	@TankProperty(category = lastStand, id = "suicide_timer_random", name = "Random timer", desc = "A random fraction of this value is added to the base timer to get the time this tank will charge before exploding")
+	@TankProperty(category = lastStand, id = "suicide_timer_random", name = "Random timer", desc = "A random fraction of this value is added to the base timer to get the time this tank will charge before exploding \n \n 1 time unit = 0.01 seconds")
 	public double suicideTimerRandom = 250;
 	/** Suicidal mode maximum speed increase*/
 	@TankProperty(category = lastStand, id = "suicide_speed_boost", name = "Speed boost", desc = "Maximum increase in speed while charging as a last stand")
@@ -284,7 +307,10 @@ public class TankAIControlled extends Tank
 	protected double[] distances = new double[8];
 
 	/** Stores distances to obstacles or tanks in 32 directions*/
-	protected double[] mineFleeDistances = new double[32];
+	protected double[] fleeDistances = new double[32];
+
+	/** Stores directions a tank may flee from a bullet, relative to that bullet's direction */
+	protected double[] fleeDirections = new double[fleeDistances.length];
 
 	/** Cooldown before the tank will turn again if it's running into a wall */
 	protected double gentleTurnCooldown = 0;
@@ -339,6 +365,18 @@ public class TankAIControlled extends Tank
 
 	/** Nearest bullet aiming at this tank, if avoid timer is > than 0*/
 	protected Bullet nearestBullet;
+
+	/** Time until the nearest threat bullet will strike */
+	protected double nearestBulletDist;
+
+	/** Nearest deflectable bullet aiming at this tank, if avoid timer is > than 0*/
+	protected Bullet nearestBulletDeflect;
+
+	/** Time until the nearest deflectable threat bullet will strike */
+	protected double nearestBulletDeflectDist;
+
+	/** Number of bullet threats that will hit this tank */
+	protected int bulletThreatCount;
 
 	/** Disable offset to shoot a bullet*/
 	protected boolean disableOffset = false;
@@ -452,7 +490,7 @@ public class TankAIControlled extends Tank
 		this.direction = ((int)(this.random.nextDouble() * 8)) / 2.0;
 
 		if (this.random.nextDouble() < 0.5)
-			this.idlePhase = RotationPhase.counterClockwise;
+			this.idlePhase = RotationPhase.counter_clockwise;
 
 		this.angle = angle;
 		this.orientation = angle;
@@ -462,6 +500,11 @@ public class TankAIControlled extends Tank
 		this.bullet.cooldownBase = 1;
 
 		this.shootAIType = ai;
+
+		for (int i = 0; i < fleeDirections.length; i++)
+		{
+			fleeDirections[i] = Math.PI / 4 + (i * 2 / fleeDirections.length) * Math.PI / 2 + i * Math.PI / fleeDirections.length;
+		}
 	}
 
 	public void updateVisibility()
@@ -511,6 +554,14 @@ public class TankAIControlled extends Tank
 			this.baseColorG = this.colorG;
 			this.baseColorB = this.colorB;
 			this.idleTimer = (this.random.nextDouble() * turretIdleTimerRandom) + turretIdleTimerBase;
+
+			if (this.targetEnemySightBehavior == TargetEnemySightBehavior.sidewind)
+				this.strafeDirection /= 2;
+			else if (this.targetEnemySightBehavior == TargetEnemySightBehavior.backwind)
+				this.strafeDirection *= 1.5;
+
+			if (this.random.nextDouble() < 0.5)
+				this.strafeDirection = -this.strafeDirection;
 		}
 
 		this.angle = (this.angle + Math.PI * 2) % (Math.PI * 2);
@@ -520,22 +571,38 @@ public class TankAIControlled extends Tank
 		if (this.spawnedTankEntries.size() > 0 && !ScreenGame.finishedQuick && !this.destroy)
 			this.updateSpawningAI();
 
-		this.vX *= Math.pow(1 - (this.friction * this.frictionModifier), Panel.frameFrequency);
-		this.vY *= Math.pow(1 - (this.friction * this.frictionModifier), Panel.frameFrequency);
-
 		if (!this.destroy)
 		{
 			this.updateTarget();
 
-			if (this.enableMovement)
-				this.updateMotionAI();
-			else
+			if (this.tookRecoil)
 			{
-				this.vX *= Math.pow(1 - (0.15 * this.frictionModifier), Panel.frameFrequency);
-				this.vY *= Math.pow(1 - (0.15 * this.frictionModifier), Panel.frameFrequency);
+				if (this.recoilSpeed <= this.maxSpeed * this.maxSpeedModifier * 1.0001)
+				{
+					this.tookRecoil = false;
+					this.inControlOfMotion = true;
+				}
+				else
+				{
+					this.setMotionInDirection(this.vX + this.posX, this.vY + this.posY, this.recoilSpeed);
+					this.recoilSpeed *= Math.pow(1 - this.friction * this.frictionModifier, Panel.frameFrequency);
+				}
+			}
+			else if (this.inControlOfMotion)
+			{
+				this.vX *= Math.pow(1 - (this.friction * this.frictionModifier), Panel.frameFrequency);
+				this.vY *= Math.pow(1 - (this.friction * this.frictionModifier), Panel.frameFrequency);
 
-				if (this.enableDefensiveFiring)
-					this.checkForBulletThreats();
+				if (this.enableMovement)
+					this.updateMotionAI();
+				else
+				{
+					this.vX *= Math.pow(1 - (0.15 * this.frictionModifier), Panel.frameFrequency);
+					this.vY *= Math.pow(1 - (0.15 * this.frictionModifier), Panel.frameFrequency);
+
+					if (this.enableDefensiveFiring)
+						this.checkForBulletThreats();
+				}
 			}
 
 			if (!ScreenGame.finished)
@@ -553,19 +620,22 @@ public class TankAIControlled extends Tank
 			if (this.transformMimic)
 				this.updateMimic();
 
-			if (this.healthTransformTank != null && this.health <= this.transformHealthThreshold)
+			if (this.healthTransformTank != null && this.health <= this.transformHealthThreshold && !ScreenGame.finishedQuick)
 				this.handleHealthTransformation();
 
 			this.postUpdate();
 		}
 
-		this.vX += this.aX * maxSpeed * Panel.frameFrequency * this.accelerationModifier;
-		this.vY += this.aY * maxSpeed * Panel.frameFrequency * this.accelerationModifier;
+		if (!this.tookRecoil)
+		{
+			this.vX += this.aX * maxSpeed * Panel.frameFrequency * this.accelerationModifier;
+			this.vY += this.aY * maxSpeed * Panel.frameFrequency * this.accelerationModifier;
 
-		double currentSpeed = Math.sqrt(this.vX * this.vX + this.vY * this.vY);
+			double currentSpeed = Math.sqrt(this.vX * this.vX + this.vY * this.vY);
 
-		if (currentSpeed > maxSpeed * maxSpeedModifier)
-			this.setPolarMotion(this.getPolarDirection(), maxSpeed * maxSpeedModifier);
+			if (currentSpeed > maxSpeed * maxSpeedModifier)
+				this.setPolarMotion(this.getPolarDirection(), maxSpeed * maxSpeedModifier);
+		}
 
 		this.bullet.updateCooldown(1);
 		this.mine.updateCooldown(1);
@@ -741,7 +811,7 @@ public class TankAIControlled extends Tank
 		{
 			for (Movable m2 : Game.movables)
 			{
-				if (Team.isAllied(m2, this) && m2 instanceof Tank && !((Tank) m2).resistExplosions && this.team.friendlyFire && Math.pow(m2.posX - posX, 2) + Math.pow(m2.posY - posY, 2) <= Math.pow(Mine.mine_size, 2))
+				if (Team.isAllied(m2, this) && m2 instanceof Tank && !((Tank) m2).resistExplosions && (this.team == null || this.team.friendlyFire) && Math.pow(m2.posX - posX, 2) + Math.pow(m2.posY - posY, 2) <= Math.pow(Mine.mine_size, 2))
 					return false;
 			}
 		}
@@ -765,12 +835,14 @@ public class TankAIControlled extends Tank
 		if (b instanceof BulletArc)
 			b.vZ = this.distance / speed * 0.5 * BulletArc.gravity;
 		else
-			b.moveOut(50 / speed * this.size / Game.tile_size);
+			b.moveOut(50 * this.size / Game.tile_size * this.turretLength / Game.tile_size);
 
 		Game.movables.add(b);
 		Game.eventsOut.add(new EventShootBullet(b));
 
-		this.cooldown = Math.pow(1 - this.cooldownSpeedup, this.cooldownStacks) * (this.random.nextDouble() * this.cooldownRandom + this.cooldownBase);
+		int r = (this.enableDefensiveFiring && this.avoidTimer > 0 && this.disableOffset && this.bulletThreatCount > 1) ? 0 : 1;
+
+		this.cooldown = Math.pow(1 - this.cooldownSpeedup, this.cooldownStacks) * (r * this.random.nextDouble() * this.cooldownRandom + this.cooldownBase);
 		this.lastCooldown = this.cooldown;
 		this.cooldownStacks++;
 
@@ -788,6 +860,7 @@ public class TankAIControlled extends Tank
 		Movable nearest = null;
 		this.hasTarget = false;
 
+		boolean lowPriority = true;
 		for (int i = 0; i < Game.movables.size(); i++)
 		{
 			Movable m = Game.movables.get(i);
@@ -798,12 +871,17 @@ public class TankAIControlled extends Tank
 				if (BulletHealing.class.isAssignableFrom(this.bullet.bulletClass) && ((Tank) m).health - ((Tank) m).baseHealth >= 1)
 					continue;
 
+				boolean lowP = (BulletBoost.class.isAssignableFrom(this.bullet.bulletClass) && (m instanceof TankAIControlled && !((TankAIControlled) m).enableMovement));
+				if (!lowPriority && lowP)
+					continue;
+
 				double dist = Movable.distanceBetween(this, m);
-				if (dist < nearestDist)
+				if (dist < nearestDist || (lowPriority && !lowP))
 				{
 					this.hasTarget = true;
 					nearestDist = dist;
 					nearest = m;
+					lowPriority = lowP;
 				}
 			}
 		}
@@ -824,7 +902,7 @@ public class TankAIControlled extends Tank
 		{
 			Movable m = Game.movables.get(i);
 
-			if (m instanceof Tank && !(m.getClass().equals(this.getClass())) && (((Tank) m).getTopLevelPossessor() == null || !(((Tank) m).getTopLevelPossessor().getClass().equals(this.getClass())))
+			if (m instanceof Tank && !(m instanceof TankAIControlled && ((TankAIControlled) m).transformMimic) && (((Tank) m).getTopLevelPossessor() == null || !(((Tank) m).getTopLevelPossessor().getClass().equals(this.getClass())))
 					&& ((Tank) m).targetable && Movable.distanceBetween(m, this) < this.mimicRange && ((Tank) m).size == this.size && !m.destroy)
 			{
 				Ray r = new Ray(this.posX, this.posY, this.getAngleInDirection(m.posX, m.posY), 0, this);
@@ -899,7 +977,7 @@ public class TankAIControlled extends Tank
 			this.setAccelerationInDirection(targetEnemy.posX, targetEnemy.posY, this.acceleration);
 		else if (this.targetEnemySightBehavior == TargetEnemySightBehavior.flee)
 			this.setAccelerationAwayFromDirection(targetEnemy.posX, targetEnemy.posY, this.acceleration);
-		else if (this.targetEnemySightBehavior == TargetEnemySightBehavior.strafe)
+		else if (this.targetEnemySightBehavior == TargetEnemySightBehavior.strafe || this.targetEnemySightBehavior == TargetEnemySightBehavior.sidewind || this.targetEnemySightBehavior == TargetEnemySightBehavior.backwind)
 		{
 			if (this.random.nextDouble() < this.strafeDirectionChangeChance * Panel.frameFrequency)
 				strafeDirection = -strafeDirection;
@@ -924,8 +1002,8 @@ public class TankAIControlled extends Tank
 		this.willRevertTransformation = true;
 		this.transform(this.sightTransformTank);
 		Drawing.drawing.playGlobalSound("timer.ogg", 1.25f);
-		Effect e1 = Effect.createNewEffect(this.posX, this.posY, this.posZ + this.size * 0.75, Effect.EffectType.exclamation);
-		e1.size = this.size;
+		Effect e1 = Effect.createNewEffect(this.posX, this.posY, this.posZ + this.sightTransformTank.size * 0.75, Effect.EffectType.exclamation);
+		e1.size = this.sightTransformTank.size;
 		e1.colR = this.colorR;
 		e1.colG = this.colorG;
 		e1.colB = this.colorB;
@@ -933,7 +1011,7 @@ public class TankAIControlled extends Tank
 		e1.glowG = this.sightTransformTank.colorG;
 		e1.glowB = this.sightTransformTank.colorB;
 		Game.effects.add(e1);
-		Game.eventsOut.add(new EventTankTransform(this, this.sightTransformTank, EventTankTransform.exclamation));
+		Game.eventsOut.add(new EventTankTransformPreset(this, true, false));
 	}
 
 	public void handleHealthTransformation()
@@ -942,6 +1020,7 @@ public class TankAIControlled extends Tank
 			return;
 
 		this.willRevertTransformation = false;
+		Game.eventsOut.add(new EventTankTransformPreset(this, false, false));
 		this.transform(this.healthTransformTank);
 	}
 
@@ -965,8 +1044,9 @@ public class TankAIControlled extends Tank
 		t.attributes = this.attributes;
 		t.statusEffects = this.statusEffects;
 		t.coinValue = this.coinValue;
-		t.cooldown = this.cooldown;
 		t.currentlyVisible = true;
+		t.cooldown = Math.min(t.cooldownBase, this.cooldown);
+		t.age = 0;
 
 		Tank p = this;
 		if (this.getTopLevelPossessor() != null)
@@ -1113,14 +1193,20 @@ public class TankAIControlled extends Tank
 				int y = (int) (o.posY / Game.tile_size);
 				Tile tile = tiles[x][y];
 				tile.type = t;
-				tile.unfavorability = Math.min(tile.unfavorability, 10);
 
-				for (int i = -1; i <= 1; i++)
+				if (o.unfavorability >= 0)
+					tile.unfavorability = o.unfavorability;
+				else if (o.tankCollision)
 				{
-					for (int j = -1; j <= 1; j++)
+					tile.unfavorability = 10;
+
+					for (int i = -1; i <= 1; i++)
 					{
-						if (x + i > 0 && x + i < tiles.length && y + j > 0 && y + j < tiles[0].length)
-							tiles[x + i][y + j].unfavorability = Math.max(tile.unfavorability, 1);
+						for (int j = -1; j <= 1; j++)
+						{
+							if (x + i > 0 && x + i < tiles.length && y + j > 0 && y + j < tiles[0].length)
+								tiles[x + i][y + j].unfavorability = Math.max(tile.unfavorability, 1);
+						}
 					}
 				}
 			}
@@ -1132,7 +1218,7 @@ public class TankAIControlled extends Tank
 				tiles[Math.min(Game.currentSizeX - 1, Math.max(0, (int) (m.posX / Game.tile_size)))][Math.min(Game.currentSizeY - 1, Math.max(0, (int) (m.posY / Game.tile_size)))].interesting = true;
 		}
 
-		ArrayList<Tile> queue = new ArrayList<>();
+		Queue<Tile> queue = new LinkedList<>();
 
 		Tile t = tiles[(int)(this.posX / Game.tile_size)][(int)(this.posY / Game.tile_size)];
 		t.explored = true;
@@ -1143,7 +1229,7 @@ public class TankAIControlled extends Tank
 
 		while (!queue.isEmpty())
 		{
-			current = queue.remove(0);
+			current = queue.remove();
 
 			if (current.search(queue, tiles))
 			{
@@ -1239,6 +1325,8 @@ public class TankAIControlled extends Tank
 		boolean avoid = false;
 
 		ArrayList<Bullet> toAvoid = new ArrayList<>();
+		ArrayList<Double> toAvoidDist = new ArrayList<>();
+		ArrayList<Bullet> toAvoidDeflect = new ArrayList<>();
 		ArrayList<Ray> toAvoidTargets = new ArrayList<>();
 
 		for (int i = 0; i < Game.movables.size(); i++)
@@ -1247,57 +1335,188 @@ public class TankAIControlled extends Tank
 			{
 				Bullet b = (Bullet) Game.movables.get(i);
 				double dist = Movable.distanceBetween(this, b);
-				if (!(b.tank == this && b.age < 20) && !(this.team != null && Team.isAllied(b, this) && !this.team.friendlyFire) && b.shouldDodge && Math.abs(b.posX - this.posX) < Game.tile_size * 10 && Math.abs(b.posY - this.posY) < Game.tile_size * 10 && (b.getMotionInDirection(b.getAngleInDirection(this.posX, this.posY)) > 0 || dist < this.size * 3))
-				{
-					Ray r = b.getRay();
-					r.tankHitSizeMul = 4;
 
-					Movable m = r.getTarget(3, this);
-					if (dist < this.size * 3 || (m != null && m.equals(this)))
+				double distBox = this.enableMovement ? 10 : 20;
+				if (!(b.tank == this && b.age < 20) && !(this.team != null && Team.isAllied(b, this) && !this.team.friendlyFire)
+						&& b.shouldDodge && Math.abs(b.posX - this.posX) < Game.tile_size * distBox && Math.abs(b.posY - this.posY) < Game.tile_size * distBox
+						&& (b.getMotionInDirection(b.getAngleInDirection(this.posX, this.posY)) > 0 || dist < this.size * 3))
+				{
+					int c = enableMovement ? 1 : 0;
+					for (int o = 0; o <= c; o++)
 					{
-						avoid = true;
-						toAvoid.add(b);
-						toAvoidTargets.add(r);
+						int mul = o == 1 ? 3 : 1;
+
+						if (dist < this.size * mul)
+						{
+							avoid = true;
+
+							if (o == 1)
+							{
+								toAvoid.add(b);
+								toAvoidDist.add(dist);
+								toAvoidTargets.add(b.getRay());
+							}
+							else
+								toAvoidDeflect.add(b);
+						}
+						else
+						{
+							Ray r = b.getRay();
+							r.tankHitSizeMul = 3;
+							double d = r.getTargetDist(mul, this);
+							if (d >= 0)
+							{
+								avoid = true;
+
+								if (o == 1)
+								{
+									toAvoid.add(b);
+									toAvoidDist.add(d);
+									toAvoidTargets.add(r);
+								}
+								else
+									toAvoidDeflect.add(b);
+							}
+						}
 					}
 				}
 			}
 		}
 
+		this.bulletThreatCount = toAvoid.size();
+
 		if (avoid)
 		{
 			Bullet nearest = null;
+			Ray nearestTarget = null;
 			double nearestDist = Double.MAX_VALUE;
-			int nearestIndex = -1;
+
+			Bullet nearestDeflectable = null;
+			double nearestDeflectableDist = Double.MAX_VALUE;
+
+			int j = 0;
 			for (int i = 0; i < toAvoid.size(); i++)
 			{
-				double dist = Movable.distanceBetween(this, toAvoid.get(i));
+				Bullet b = toAvoid.get(i);
+				double dist = toAvoidDist.get(i) / b.getSpeed();
 				if (dist < nearestDist)
 				{
-					nearest = toAvoid.get(i);
+					nearest = b;
+					nearestTarget = toAvoidTargets.get(i);
 					nearestDist = dist;
-					nearestIndex = i;
+				}
+
+				if (j < toAvoidDeflect.size() && toAvoidDeflect.get(j) == b)
+				{
+					if (!b.heavy && b.canBeCanceled && (!Team.isAllied(this, b) || !this.enableMovement) && dist < nearestDeflectableDist)
+					{
+						nearestDeflectable = b;
+						nearestDeflectableDist = dist;
+					}
+
+					j++;
 				}
 			}
 
-			double targetX = toAvoidTargets.get(nearestIndex).targetX;
-			double targetY = toAvoidTargets.get(nearestIndex).targetY;
+			if (nearest == null)
+				return;
+
+			double direction = nearest.getPolarDirection();
+			double distance = Movable.distanceBetween(this, nearest);
+			double diff = Movable.angleBetween(direction, this.getAngleInDirection(nearest.posX, nearest.posY));
+
+			if (this.enableMovement)
+			{
+				double m = distance / nearest.getSpeed() * this.maxSpeed;
+				if (m > Game.tile_size * 4 && avoidanceSeekOpenSpaces)
+				{
+					int count = fleeDistances.length;
+					double[] d = fleeDistances;
+
+					for (int dir = 0; dir < count; dir++)
+					{
+						Ray r = new Ray(this.posX, this.posY, direction + fleeDirections[dir], 0, this, Game.tile_size);
+						r.size = Game.tile_size * this.hitboxSize - 1;
+
+						boolean b = this.targetEnemy != null && this.bulletAvoidBehvavior == BulletAvoidBehavior.aggressive_dodge && Movable.absoluteAngleBetween(fleeDirections[dir] + direction, this.getAngleInDirection(this.targetEnemy.posX, this.targetEnemy.posY)) > Math.PI * 0.5;
+
+						double dist = r.getDist();
+						d[dir] = dist;
+
+						if (b)
+							d[dir] = Math.min(d[dir] - Game.tile_size, Game.tile_size * 3);
+					}
+
+					int greatest = -1;
+					double gValue = -1;
+					for (int i = 0; i < d.length; i++)
+					{
+						if (d[i] > gValue)
+						{
+							gValue = d[i];
+							greatest = i;
+						}
+					}
+
+					if (gValue < Game.tile_size * 4)
+						this.avoidDirection = direction + fleeDirections[greatest];
+					else if (this.avoidTimer <= 0)
+					{
+						// randomly pick one >= 3 tiles
+						while (true)
+						{
+							int c = (int) (this.random.nextDouble() * count);
+							if (d[c] >= Game.tile_size * 4)
+							{
+								this.avoidDirection = direction + fleeDirections[greatest];
+								break;
+							}
+						}
+					}
+				}
+				else
+				{
+					double frac = Math.max(0, 2 - Math.max(m / (Game.tile_size * 2), 1));
+
+					if (this.bulletAvoidBehvavior == BulletAvoidBehavior.aggressive_dodge || this.bulletAvoidBehvavior == BulletAvoidBehavior.dodge)
+					{
+						double invert = 1;
+
+						if (this.bulletAvoidBehvavior == BulletAvoidBehavior.aggressive_dodge)
+							invert = -1;
+
+						this.avoidDirection = direction + Math.PI * 0.5 * (1 - (1 - frac) * invert / 2) * Math.signum(diff);
+					}
+					else if (this.bulletAvoidBehvavior == BulletAvoidBehavior.back_off)
+						this.avoidDirection = nearest.getAngleInDirection(this.posX, this.posY);
+					else if (this.bulletAvoidBehvavior == BulletAvoidBehavior.intersect)
+					{
+						double targetX = nearestTarget.targetX;
+						double targetY = nearestTarget.targetY;
+
+						this.avoidTimer = this.bulletAvoidTimerBase;
+						this.avoidDirection = this.getAngleInDirection(targetX, targetY) + Math.PI;
+						diff = Movable.angleBetween(this.avoidDirection, direction);
+
+						if (Math.abs(diff) < Math.PI / 4)
+							this.avoidDirection = direction + Math.signum(diff) * Math.PI / 4;
+
+						Ray r = new Ray(this.posX, this.posY, this.avoidDirection, 0, this, Game.tile_size);
+						r.size = Game.tile_size * this.hitboxSize - 1;
+						double d = r.getDist();
+
+						if (d < Game.tile_size * 2)
+							this.avoidDirection = direction - diff;
+					}
+				}
+			}
 
 			this.avoidTimer = this.bulletAvoidTimerBase;
-			this.avoidDirection = this.getAngleInDirection(targetX, targetY) + Math.PI;//nearest.getPolarDirection() + fleeDirection;
-			double direction = nearest.getPolarDirection();
-			double diff = Movable.angleBetween(this.avoidDirection, direction);
-
-			if (Math.abs(diff) < Math.PI / 4)
-				this.avoidDirection = direction + Math.signum(diff) * Math.PI / 4;
-
-			Ray r = new Ray(this.posX, this.posY, this.avoidDirection, 0, this, Game.tile_size);
-			r.size = Game.tile_size * this.hitboxSize - 1;
-			double d = r.getDist();
-
-			if (d < Game.tile_size * 2)
-				this.avoidDirection = direction - diff;
-
 			this.nearestBullet = nearest;
+			this.nearestBulletDist = nearestDist;
+
+			this.nearestBulletDeflect = nearestDeflectable;
+			this.nearestBulletDeflectDist = nearestDeflectableDist;
 		}
 	}
 
@@ -1343,15 +1562,10 @@ public class TankAIControlled extends Tank
 	{
 		if (this.shootTimer <= -this.shootRoundTime / 2 && this.targetEnemy != null)
 		{
-			double a;
+			double a = this.aimAngle;
 
 			if (this.shootAIType == ShootAI.sprinkler)
 				this.aimAngle = this.angle;
-
-			if (this.shootAIType == ShootAI.straight || (this.shootAIType == ShootAI.alternate && this.straightShoot))
-				a = this.getAngleInDirection(this.targetEnemy.posX, this.targetEnemy.posY);
-			else
-				a = this.aimAngle;
 
 			double originalAimAngle = this.aimAngle;
 			this.aimAngle = this.fanOffset + a;
@@ -1447,7 +1661,7 @@ public class TankAIControlled extends Tank
 		{
 			this.idleTimer = this.random.nextDouble() * turretIdleTimerRandom + turretIdleTimerBase;
 			if (this.idlePhase == RotationPhase.clockwise)
-				this.idlePhase = RotationPhase.counterClockwise;
+				this.idlePhase = RotationPhase.counter_clockwise;
 			else
 				this.idlePhase = RotationPhase.clockwise;
 		}
@@ -1455,14 +1669,14 @@ public class TankAIControlled extends Tank
 
 	public void updateTurretStraight()
 	{
-		if (this.avoidTimer > 0 && this.enableDefensiveFiring && !this.nearestBullet.destroy && !this.nearestBullet.heavy && this.nearestBullet.canBeCanceled)
+		if (this.avoidTimer > 0 && this.enableDefensiveFiring && this.nearestBulletDeflect != null && !this.nearestBulletDeflect.destroy && (this.enableMovement || this.nearestBulletDeflectDist <= this.bulletThreatCount * Math.max(this.cooldownBase, 50) * 1.5))
 		{
-			double a = this.nearestBullet.getAngleInDirection(this.posX + 50 / this.bullet.speed * this.nearestBullet.vX, this.posY + 50 / this.bullet.speed * this.nearestBullet.vY);
-			double speed = this.nearestBullet.getLastMotionInDirection(a + Math.PI / 2);
+			double a = this.nearestBulletDeflect.getAngleInDirection(this.posX + Game.tile_size / this.bullet.speed * this.nearestBulletDeflect.vX, this.posY + Game.tile_size / this.bullet.speed * this.nearestBulletDeflect.vY);
+			double speed = this.nearestBulletDeflect.getLastMotionInDirection(a + Math.PI / 2);
 
 			if (speed < this.bullet.speed)
 			{
-				double d = this.getAngleInDirection(nearestBullet.posX, nearestBullet.posY) - Math.asin(speed / this.bullet.speed);
+				double d = this.getAngleInDirection(nearestBulletDeflect.posX, nearestBulletDeflect.posY) - Math.asin(speed / this.bullet.speed);
 
 				if (!Double.isNaN(d))
 					this.aimAngle = d;
@@ -1620,7 +1834,7 @@ public class TankAIControlled extends Tank
 		}
 
 		if (Movable.absoluteAngleBetween(this.angle, this.aimAngle) <= this.aimThreshold)
-			if ((arc && this.targetEnemy != null) || (m != null && m.equals(this.targetEnemy) || (this.avoidTimer > 0 && this.enableDefensiveFiring && !this.nearestBullet.destroy && !this.nearestBullet.heavy && this.nearestBullet.canBeCanceled)))
+			if ((arc && this.targetEnemy != null) || (m != null && m.equals(this.targetEnemy) || (this.avoidTimer > 0 && this.disableOffset && this.enableDefensiveFiring && this.nearestBulletDeflect != null && !this.nearestBulletDeflect.destroy)))
 				this.shoot();
 	}
 
@@ -1635,14 +1849,14 @@ public class TankAIControlled extends Tank
 
 		this.search();
 
-		if (this.avoidTimer > 0 && this.enableDefensiveFiring && !this.nearestBullet.destroy && !this.nearestBullet.heavy && this.nearestBullet.canBeCanceled)
+		if (this.avoidTimer > 0 && this.enableDefensiveFiring && this.nearestBulletDeflect != null && !this.nearestBulletDeflect.destroy && (this.enableMovement || this.nearestBulletDist <= this.bulletThreatCount * Math.max(Math.max(Math.max(this.cooldownBase, this.bullet.cooldownBase), this.bullet.cooldownBase), 50) * 1.5))
 		{
-			double a = this.nearestBullet.getAngleInDirection(this.posX + 50 / this.bullet.speed * this.nearestBullet.vX, this.posY + 50 / this.bullet.speed * this.nearestBullet.vY);
-			double speed = this.nearestBullet.getLastMotionInDirection(a + Math.PI / 2);
+			double a = this.nearestBulletDeflect.getAngleInDirection(this.posX + Game.tile_size / this.bullet.speed * this.nearestBulletDeflect.vX, this.posY + Game.tile_size / this.bullet.speed * this.nearestBulletDeflect.vY);
+			double speed = this.nearestBulletDeflect.getLastMotionInDirection(a + Math.PI / 2);
 
 			if (speed < this.bullet.speed)
 			{
-				double d = this.getAngleInDirection(nearestBullet.posX, nearestBullet.posY) - Math.asin(speed / this.bullet.speed);
+				double d = this.getAngleInDirection(nearestBulletDeflect.posX, nearestBulletDeflect.posY) - Math.asin(speed / this.bullet.speed);
 
 				if (!Double.isNaN(d))
 				{
@@ -1654,7 +1868,7 @@ public class TankAIControlled extends Tank
 			this.disableOffset = true;
 		}
 
-		if (aim && (this.hasTarget || (this.avoidTimer > 0 && this.enableDefensiveFiring && !this.nearestBullet.destroy && !this.nearestBullet.heavy && this.nearestBullet.canBeCanceled)))
+		if (aim && (this.hasTarget || (this.avoidTimer > 0 && this.enableDefensiveFiring && this.nearestBulletDeflect != null && !this.nearestBulletDeflect.destroy)))
 			this.updateAimingTurret();
 		else if (currentlySeeking && this.seekPause <= 0)
 			this.updateSeekingTurret();
@@ -1672,7 +1886,7 @@ public class TankAIControlled extends Tank
 		{
 			searchAngle += this.random.nextDouble() * 0.1 * Panel.frameFrequency;
 		}
-		else if (this.searchPhase == RotationPhase.counterClockwise)
+		else if (this.searchPhase == RotationPhase.counter_clockwise)
 		{
 			searchAngle -= this.random.nextDouble() * 0.1 * Panel.frameFrequency;
 		}
@@ -1686,7 +1900,7 @@ public class TankAIControlled extends Tank
 				if (this.random.nextDouble() < 0.5)
 					this.searchPhase = RotationPhase.clockwise;
 				else
-					this.searchPhase = RotationPhase.counterClockwise;
+					this.searchPhase = RotationPhase.counter_clockwise;
 			}
 		}
 
@@ -1763,7 +1977,7 @@ public class TankAIControlled extends Tank
 				this.straightShoot = false;
 		}
 
-		if (this.sightTransformTank != null && seesTargetEnemy && this.inControlOfMotion)
+		if (this.sightTransformTank != null && seesTargetEnemy && this.inControlOfMotion && !ScreenGame.finishedQuick)
 			this.handleSightTransformation();
 	}
 
@@ -1818,7 +2032,7 @@ public class TankAIControlled extends Tank
 		if (this.idleTimer <= 0)
 		{
 			if (this.idlePhase == RotationPhase.clockwise)
-				this.idlePhase = RotationPhase.counterClockwise;
+				this.idlePhase = RotationPhase.counter_clockwise;
 			else
 				this.idlePhase = RotationPhase.clockwise;
 
@@ -1837,7 +2051,7 @@ public class TankAIControlled extends Tank
 		if (Movable.absoluteAngleBetween(dir, this.angle) > Math.PI / 8)
 		{
 			if (Movable.angleBetween(dir, this.angle) < 0)
-				this.idlePhase = RotationPhase.counterClockwise;
+				this.idlePhase = RotationPhase.counter_clockwise;
 			else
 				this.idlePhase = RotationPhase.clockwise;
 		}
@@ -1859,8 +2073,7 @@ public class TankAIControlled extends Tank
 
 	public void updateMineAI()
 	{
-		double nearestDist = Double.MAX_VALUE;
-		double nearestTimer = Double.MAX_VALUE;
+		double worstSeverity = Double.MAX_VALUE;
 
 		if (this.mineTimer == -1)
 			this.mineTimer = (this.random.nextDouble() * mineTimerRandom + mineTimerBase);
@@ -1873,7 +2086,7 @@ public class TankAIControlled extends Tank
 
 			for (Movable m: Game.movables)
 			{
-				if (m instanceof IAvoidObject)
+				if (m instanceof IAvoidObject && !(Team.isAllied(this, m) && (this.team != null && !this.team.friendlyFire)))
 					avoidances.add((IAvoidObject) m);
 			}
 
@@ -1894,12 +2107,11 @@ public class TankAIControlled extends Tank
 
 				if (distSq <= Math.pow(o.getRadius() * this.mineAvoidSensitivity, 2))
 				{
-					double d = Math.sqrt(distSq);
-					nearestDist = d;
+					double d = o.getSeverity(this.posX, this.posY);
 
-					if (nearestTimer > d)
+					if (d < worstSeverity)
 					{
-						nearestTimer = d;
+						worstSeverity = d;
 						nearest = o;
 					}
 				}
@@ -1954,7 +2166,7 @@ public class TankAIControlled extends Tank
 				this.mineTimer = Math.max(0, this.mineTimer - Panel.frameFrequency);
 		}
 
-		if (nearestDist <= 1 && this.mineFleeTimer <= 0 && this.enableMovement)
+		if (worstSeverity <= 1 && this.mineFleeTimer <= 0 && this.enableMovement)
 		{
 			this.overrideDirection = true;
 			this.setPolarAcceleration(this.random.nextDouble() * 2 * Math.PI, acceleration);
@@ -1969,8 +2181,8 @@ public class TankAIControlled extends Tank
 		Game.movables.add(m);
 		this.mineTimer = (this.random.nextDouble() * mineTimerRandom + mineTimerBase);
 
-		int count = mineFleeDistances.length;
-		double[] d = mineFleeDistances;
+		int count = fleeDistances.length;
+		double[] d = fleeDistances;
 		this.mineFleeTimer = 100;
 
 		int k = 0;
@@ -2084,7 +2296,7 @@ public class TankAIControlled extends Tank
 			{
 				totalWeight += s.weight;
 			}
-			double selected = Math.random() * totalWeight;
+			double selected = this.random.nextDouble() * totalWeight;
 
 			for (SpawnedTankEntry s: this.spawnedTankEntries)
 			{
@@ -2194,6 +2406,9 @@ public class TankAIControlled extends Tank
 
 	public void updatePossessingTransform()
 	{
+		if (this.transformTank.destroy)
+			this.destroy = true;
+
 		if (this.transformTank.destroy || this.destroy || ScreenGame.finishedQuick || this.positionLock || !this.willRevertTransformation || this.justTransformed)
 			return;
 
@@ -2235,8 +2450,9 @@ public class TankAIControlled extends Tank
 			this.possessingTank = null;
 			this.currentlyVisible = true;
 			this.targetEnemy = null;
+			this.cooldown = Math.min(this.cooldownBase, this.sightTransformTank.cooldown);
 			Drawing.drawing.playGlobalSound("slowdown.ogg", 0.75f);
-			Game.eventsOut.add(new EventTankTransform(this, this, EventTankTransform.no_effect));
+			Game.eventsOut.add(new EventTankTransformPreset(this, false, true));
 			Game.movables.add(this);
 			Game.removeMovables.add(this.sightTransformTank);
 			this.skipNextUpdate = true;
@@ -2303,6 +2519,10 @@ public class TankAIControlled extends Tank
 			this.attributes = t.attributes;
 			this.statusEffects = t.statusEffects;
 			this.targetEnemy = null;
+
+			if (t instanceof TankAIControlled)
+				this.cooldown = Math.min(this.cooldownBase, ((TankAIControlled) t).cooldown);
+
 			Drawing.drawing.playGlobalSound("slowdown.ogg", 1);
 
 			Game.movables.add(this);
@@ -2390,6 +2610,11 @@ public class TankAIControlled extends Tank
 			t.baseModel = this.baseModel;
 			t.turretModel = this.turretModel;
 			t.turretBaseModel = this.turretBaseModel;
+
+			if (t instanceof TankAIControlled)
+				((TankAIControlled) t).cooldown = Math.min(((TankAIControlled) t).cooldownBase, this.cooldown);
+
+			t.age = 0;
 
 			t.crusadeID = this.crusadeID;
 
@@ -2498,7 +2723,7 @@ public class TankAIControlled extends Tank
 			this.tileY = y;
 		}
 
-		public boolean search(ArrayList<Tile> queue, Tile[][] map)
+		public boolean search(Queue<Tile> queue, Tile[][] map)
 		{
 			boolean freeLeft = this.tileX > 0;
 			boolean freeTop = this.tileY > 0;
@@ -2551,7 +2776,7 @@ public class TankAIControlled extends Tank
 			return false;
 		}
 
-		public void explore(Tile parent, ArrayList<Tile> queue)
+		public void explore(Tile parent, Queue<Tile> queue)
 		{
 			if (this.type != Type.solid && !this.explored)
 			{

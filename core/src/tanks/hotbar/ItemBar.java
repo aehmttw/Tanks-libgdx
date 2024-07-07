@@ -1,18 +1,17 @@
 package tanks.hotbar;
 
 import tanks.*;
-import tanks.gui.screen.ScreenPartyHost;
-import tanks.minigames.Arcade;
-import tanks.network.Server;
-import tanks.network.ServerHandler;
-import tanks.network.event.EventSetItem;
-import tanks.network.event.EventSetItemBarSlot;
 import tanks.gui.Button;
 import tanks.gui.input.InputBindingGroup;
 import tanks.gui.screen.ScreenGame;
+import tanks.gui.screen.ScreenPartyHost;
 import tanks.gui.screen.ScreenPartyLobby;
 import tanks.hotbar.item.Item;
 import tanks.hotbar.item.ItemEmpty;
+import tanks.minigames.Arcade;
+import tanks.network.ServerHandler;
+import tanks.network.event.EventSetItem;
+import tanks.network.event.EventSetItemBarSlot;
 
 public class ItemBar
 {
@@ -208,7 +207,7 @@ public class ItemBar
 
 				Button b = this.slotButtons[i];
 				b.posX = ((i - 2) * gap) + (Drawing.drawing.interfaceSizeX / 2);
-				b.posY = Drawing.drawing.interfaceSizeY - bar_margin - this.player.hotbar.verticalOffset;
+				b.posY = Drawing.drawing.getInterfaceEdgeY(true) - bar_margin - this.player.hotbar.verticalOffset;
 				b.update();
 			}
 		}
@@ -260,7 +259,7 @@ public class ItemBar
 
 	public void draw()
 	{
-		int y = (int) (Drawing.drawing.interfaceSizeY - bar_margin + this.player.hotbar.percentHidden - this.player.hotbar.verticalOffset);
+		int y = (int) (Drawing.drawing.getInterfaceEdgeY(true) - bar_margin + this.player.hotbar.percentHidden - this.player.hotbar.verticalOffset);
 
 		double slotBgBrightness = 0;
 
@@ -361,7 +360,10 @@ public class ItemBar
 				}
 			}
 		}
+	}
 
+	public void drawOverlay()
+	{
 		if (this.age - lastItemSwitch < 200)
 		{
 			Item i = defaultItemEmpty;

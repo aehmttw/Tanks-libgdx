@@ -1,8 +1,13 @@
 package tanks.gui.screen;
 
-import basewindow.transformation.*;
+import basewindow.transformation.RotationAboutPoint;
+import basewindow.transformation.ScaleAboutPoint;
+import basewindow.transformation.Transformation;
+import basewindow.transformation.Translation;
 import tanks.*;
 import tanks.obstacle.Obstacle;
+import tanks.rendering.StaticTerrainRenderer;
+import tanks.rendering.TerrainRenderer;
 import tanks.tank.TankAIControlled;
 import tanks.tank.TankSpawnMarker;
 
@@ -19,7 +24,7 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
         public ArrayList<TankAIControlled> tanks = new ArrayList<>();
         public String levelString;
         public Level level;
-        public Drawing.LevelRenderer renderer = new Drawing.LevelRenderer();
+        public StaticTerrainRenderer renderer;
         public boolean isTransition = false;
 
         public int startIndex;
@@ -60,7 +65,8 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
         {
             for (ScreenLevel l: currentScreen.levels)
             {
-                l.renderer.free();
+                if (l.renderer != null)
+                    l.renderer.reset();
             }
         }
 
@@ -79,6 +85,9 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
 
     public void initialize(ScreenLevel l)
     {
+        l.renderer = new StaticTerrainRenderer();
+        l.renderer.asPreview = true;
+
         ArrayList<Movable> movables = Game.movables;
         ArrayList<Obstacle> obstacles = Game.obstacles;
 
@@ -95,16 +104,17 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
         Game.obstacles = l.obstacles;
 
         l.level.loadLevel(this);
+        l.renderer.outOfBoundsRenderer = new StaticTerrainRenderer.RegionRenderer(Game.game.shaderOutOfBounds);
 
         l.startIndex = index;
         index += l.level.sizeY;
         l.width = l.level.sizeX;
         l.endIndex = index;
+        l.renderer.previewWidth = l.level.sizeX;
         this.levelsPos.put(index - 1, l);
 
-        Drawing.drawing.setRenderer(l.renderer);
-
-        Drawing.drawing.beginTerrainRenderers();
+        TerrainRenderer r = Drawing.drawing.terrainRenderer;
+        Drawing.drawing.terrainRenderer = l.renderer;
 
         for (int i = 0; i < Game.game.heightGrid.length; i++)
         {
@@ -112,41 +122,13 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
             Arrays.fill(Game.game.groundHeightGrid[i], -1000);
         }
 
-        if (Game.enable3d)
-            for (Obstacle o: Game.obstacles)
-            {
-                if (o.replaceTiles)
-                    o.postOverride();
-
-                int x = (int) (o.posX / Game.tile_size);
-                int y = (int) (o.posY / Game.tile_size);
-
-                if (!(!Game.fancyTerrain || !Game.enable3d || x < 0 || x >= Game.currentSizeX || y < 0 || y >= Game.currentSizeY))
-                {
-                    Game.game.heightGrid[x][y] = Math.max(o.getTileHeight(), Game.game.heightGrid[x][y]);
-                    Game.game.groundHeightGrid[x][y] = Math.max(o.getGroundHeight(), Game.game.groundHeightGrid[x][y]);
-                }
-            }
-
         this.drawBgRect = false;
+        this.stageOnly = true;
         this.drawDefaultBackground();
         this.drawBgRect = true;
+        this.stageOnly = false;
 
-        if (Game.enable3d && Game.game.window.shapeRenderer.supportsBatching)
-        {
-            for (int i = 0; i < drawables.length; i++)
-            {
-                for (Obstacle o : Game.obstacles)
-                {
-                    if (o.drawLevel == i && o.batchDraw)
-                        o.draw();
-                }
-            }
-        }
-
-        Drawing.drawing.stageRenderers();
-
-        Drawing.drawing.setRenderer(Drawing.drawing.defaultRenderer);
+        Drawing.drawing.terrainRenderer = r;
 
         Game.movables = movables;
         Game.obstacles = obstacles;
@@ -163,18 +145,17 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
     public void addTransitionLevels(ScreenLevel l)
     {
         int fade = 8;
-
-        for (int i = 1; i < fade; i++)
+        for (int f = 0; f < fade; f++)
         {
             ScreenLevel l2 = new ScreenLevel();
-            double frac = i * 1.0 / fade;
+            double frac = f * 1.0 / fade;
             int r = (int) (this.lastR * (1 - frac) + l.level.colorR * frac);
             int g = (int) (this.lastG * (1 - frac) + l.level.colorG * frac);
             int b = (int) (this.lastB * (1 - frac) + l.level.colorB * frac);
             int dr = (int) (this.lastDR * (1 - frac) + l.level.colorVarR * frac);
             int dg = (int) (this.lastDG * (1 - frac) + l.level.colorVarG * frac);
             int db = (int) (this.lastDB * (1 - frac) + l.level.colorVarB * frac);
-            l2.levelString = "{28,1," + r + "," + g + "," + b + "," + dr + "," + dg + "," + db + "||10000-0-player}";
+            l2.levelString = "{28,1," + r + "," + g + "," + b + "," + dr + "," + dg + "," + db + "||100-0-player}";
             Game.movables = l2.movables;
             Game.obstacles = l2.obstacles;
             l2.isTransition = true;
@@ -199,6 +180,7 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
 
     public void draw()
     {
+        TerrainRenderer r = Drawing.drawing.terrainRenderer;
         Transformation prevShadow = Game.game.window.lightBaseTransformation[0];
         Game.game.window.lightBaseTransformation[0] = this.shadowScale;
 
@@ -262,7 +244,6 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
                     if (!allLoaded && j > this.index)
                     {
                         ScreenLevel n = this.levels.get(this.levelsLoaded);
-
                         Game.movables = movables;
                         Game.obstacles = obstacles;
 
@@ -277,12 +258,14 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
                 if (l == null)
                     break;
 
-                Drawing.drawing.setRenderer(l.renderer);
+                Drawing.drawing.terrainRenderer = l.renderer;
 
                 Game.movables = l.movables;
                 Game.obstacles = l.obstacles;
 
-                Drawing.drawing.drawTerrainRenderers(false, Drawing.drawing.interfaceSizeX / 2 - (l.width / 2.0) * Game.tile_size, Game.tile_size * -(i - rem), 0, 1);
+                l.renderer.offX = Drawing.drawing.baseInterfaceSizeX / 2 - (l.width / 2.0) * Game.tile_size;
+                l.renderer.offY = Game.tile_size * -(i - rem);
+                l.renderer.draw();
 
                 for (Movable m: Game.movables)
                 {
@@ -292,7 +275,7 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
                         drawables[m.nameTag.drawLevel].add(m.nameTag);
                 }
 
-                if (Game.enable3d && Game.game.window.shapeRenderer.supportsBatching)
+                if (Game.enable3d)
                 {
                     for (int n = 0; n < drawables.length; n++)
                     {
@@ -313,7 +296,7 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
                     }
                 }
 
-                translation.x = (Drawing.drawing.interfaceSizeX / 2 - (l.width / 2.0) * Game.tile_size) / Game.game.window.absoluteWidth * Drawing.drawing.interfaceScale;
+                translation.x = (Drawing.drawing.baseInterfaceSizeX / 2 - (l.width / 2.0) * Game.tile_size) / Game.game.window.absoluteWidth * Drawing.drawing.interfaceScale;
                 translation.y = Game.tile_size * -(i - rem) / Game.game.window.absoluteHeight * Drawing.drawing.scale;
                 translation.applyAsShadow = true;
                 Game.game.window.addMatrix();
@@ -352,7 +335,7 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
             }
         }
 
-        Drawing.drawing.setRenderer(Drawing.drawing.defaultRenderer);
+        Drawing.drawing.terrainRenderer = r;
 
         Game.movables = movables;
         Game.obstacles = obstacles;

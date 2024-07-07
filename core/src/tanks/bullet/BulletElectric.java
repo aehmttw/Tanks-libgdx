@@ -2,12 +2,12 @@ package tanks.bullet;
 
 import tanks.*;
 import tanks.AttributeModifier.Operation;
-import tanks.network.event.EventBulletDestroyed;
-import tanks.network.event.EventBulletElectricStunEffect;
-import tanks.network.event.EventBulletInstantWaypoint;
-import tanks.network.event.EventShootBullet;
 import tanks.gui.screen.ScreenGame;
 import tanks.hotbar.item.ItemBullet;
+import tanks.network.event.EventBulletDestroyed;
+import tanks.network.event.EventBulletInstantWaypoint;
+import tanks.network.event.EventBulletStunEffect;
+import tanks.network.event.EventShootBullet;
 import tanks.tank.Mine;
 import tanks.tank.Tank;
 
@@ -65,6 +65,7 @@ public class BulletElectric extends BulletInstant
 		{
 			double angle = this.getAngleInDirection(target.posX, target.posY);
 			this.addPolarMotion(angle, 25.0 / 8);
+			this.speed = 25.0 / 8;
 		}
 
 		if (!this.tank.isRemote)
@@ -78,8 +79,6 @@ public class BulletElectric extends BulletInstant
 				this.destroy = true;
 
 			this.move();
-
-			//this.addEffect();
 		}
 
 		this.addDestroyEffect();
@@ -125,7 +124,7 @@ public class BulletElectric extends BulletInstant
 	}
 
 	public void move()
-	{	
+	{
 		this.invulnerability -= Panel.frameFrequency;
 		super.superUpdate();
 	}
@@ -196,6 +195,7 @@ public class BulletElectric extends BulletInstant
 				b.damage = this.damage;
 				b.team = this.team;
 				b.delay = 10;
+				b.inside.addAll(this.inside);
 
 				if (movable instanceof Tank)
 					b.invulnerability = 16;
@@ -207,50 +207,32 @@ public class BulletElectric extends BulletInstant
 			}
 		}
 
-		if (movable instanceof Tank && !this.tank.isRemote)
+		if (!this.tank.isRemote)
 		{
-			Game.eventsOut.add(new EventBulletElectricStunEffect(this.posX, this.posY, this.posZ, 1));
-
-			if (Game.effectsEnabled)
+			if (movable instanceof Tank)
 			{
-				for (int i = 0; i < 25 * Game.effectMultiplier; i++)
+				Game.eventsOut.add(new EventBulletStunEffect(this.posX, this.posY, this.posZ, 1));
+
+				if (Game.effectsEnabled)
 				{
-					Effect e = Effect.createNewEffect(this.posX, this.posY, this.posZ, Effect.EffectType.stun);
-					double var = 50;
-					e.colR = Math.min(255, Math.max(0, 0 + Math.random() * var - var / 2));
-					e.colG = Math.min(255, Math.max(0, 255 + Math.random() * var - var / 2));
-					e.colB = Math.min(255, Math.max(0, 255 + Math.random() * var - var / 2));
-					e.glowR = 0;
-					e.glowG = 128;
-					e.glowB = 128;
-					Game.effects.add(e);
+					for (int i = 0; i < 25 * Game.effectMultiplier; i++)
+					{
+						Effect e = Effect.createNewEffect(this.posX, this.posY, this.posZ, Effect.EffectType.stun);
+						double var = 50;
+						e.colR = Math.min(255, Math.max(0, 0 + Math.random() * var - var / 2));
+						e.colG = Math.min(255, Math.max(0, 255 + Math.random() * var - var / 2));
+						e.colB = Math.min(255, Math.max(0, 255 + Math.random() * var - var / 2));
+						e.glowR = 0;
+						e.glowG = 128;
+						e.glowB = 128;
+						Game.effects.add(e);
+					}
 				}
 			}
+			else
+				movable.destroy = true;
 		}
-	}
 
-	@Override
-	public void addDestroyEffect()
-	{
-		if (Game.effectsEnabled)
-		{
-			for (int i = 0; i < this.size * 4 * Game.effectMultiplier; i++)
-			{
-				Effect e = Effect.createNewEffect(this.posX, this.posY, this.posZ, Effect.EffectType.piece);
-				double var = 50;
-				e.maxAge /= 2;
-				e.colR = Math.min(255, Math.max(0, this.baseColorR + Math.random() * var - var / 2));
-				e.colG = Math.min(255, Math.max(0, this.baseColorG + Math.random() * var - var / 2));
-				e.colB = Math.min(255, Math.max(0, this.baseColorB + Math.random() * var - var / 2));
-
-				if (Game.enable3d)
-					e.set3dPolarMotion(Math.random() * 2 * Math.PI, Math.random() * Math.PI, Math.random() * this.size / 50.0 * 4);
-				else
-					e.setPolarMotion(Math.random() * 2 * Math.PI, Math.random() * this.size / 50.0 * 4);
-
-				Game.effects.add(e);
-			}
-		}
 	}
 
 	@Override

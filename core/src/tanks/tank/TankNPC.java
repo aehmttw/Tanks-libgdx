@@ -5,10 +5,6 @@ import tanks.Drawing;
 import tanks.Game;
 import tanks.ModAPI;
 import tanks.Panel;
-import tanks.network.event.EventAddNPCShopItem;
-import tanks.network.event.EventClearNPCShop;
-import tanks.network.event.EventPurchaseNPCItem;
-import tanks.network.event.EventSortNPCShopButtons;
 import tanks.gui.Button;
 import tanks.gui.ButtonList;
 import tanks.gui.input.InputBinding;
@@ -17,6 +13,10 @@ import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyLobby;
 import tanks.hotbar.item.Item;
 import tanks.hotbar.item.ItemRemote;
+import tanks.network.event.EventAddNPCShopItem;
+import tanks.network.event.EventClearNPCShop;
+import tanks.network.event.EventPurchaseNPCItem;
+import tanks.network.event.EventSortNPCShopButtons;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,7 +78,7 @@ public class TankNPC extends TankDummy
         this.shopItems = shop;
         this.tagName = tagName;
         this.showName = tagName.length() > 0;
-        this.nameTag = new NameTag(this, 0, this.size / 7 * 5, this.size / 2, tagName, nameR, nameG, nameB);
+        this.nameTag = new NameTag(this, 0, this.size / 7 * 5, this.size / 2, tagName);
 
         this.colorR = r;
         this.colorG = g;

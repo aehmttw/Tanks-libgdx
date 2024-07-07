@@ -1,13 +1,14 @@
 package tanks;
 
-import tanks.gui.screen.*;
+import tanks.gui.screen.ILevelPreviewScreen;
+import tanks.gui.screen.ScreenGame;
+import tanks.gui.screen.ScreenPartyHost;
+import tanks.gui.screen.ScreenPartyLobby;
 import tanks.gui.screen.leveleditor.ScreenLevelEditor;
 import tanks.gui.screen.leveleditor.ScreenLevelEditorOverlay;
 import tanks.hotbar.item.Item;
-import tanks.hotbar.item.ItemBullet;
-import tanks.hotbar.item.ItemMine;
-import tanks.obstacle.Obstacle;
 import tanks.network.event.*;
+import tanks.obstacle.Obstacle;
 import tanks.tank.*;
 
 import java.util.ArrayList;
@@ -681,8 +682,6 @@ public class Level
 
 	public void reloadTiles()
 	{
-		Drawing.drawing.forceRedrawTerrain();
-
 		Game.currentSizeX = (int) (sizeX * Game.bgResMultiplier);
 		Game.currentSizeY = (int) (sizeY * Game.bgResMultiplier);
 
@@ -714,7 +713,8 @@ public class Level
 					Game.tilesR[i][j] = (colorR + tilesRandom.nextDouble() * colorVarR);
 					Game.tilesG[i][j] = (colorG + tilesRandom.nextDouble() * colorVarG);
 					Game.tilesB[i][j] = (colorB + tilesRandom.nextDouble() * colorVarB);
-					Game.tilesDepth[i][j] = tilesRandom.nextDouble() * 10;
+					double rand = tilesRandom.nextDouble() * 10;
+					Game.tilesDepth[i][j] = Game.enable3dBg ? rand : 0;
 				}
 				else
 				{
@@ -789,6 +789,6 @@ public class Level
 
 	public static boolean isDark()
 	{
-		return Level.currentColorR + Level.currentColorG + Level.currentColorB <= 127 * 3 || (Game.framework != Game.Framework.libgdx && currentLightIntensity <= 0.5);
+		return Level.currentColorR * 0.2126 + Level.currentColorG * 0.7152 + Level.currentColorB * 0.0722 <= 127 || currentLightIntensity <= 0.5;
 	}
 }

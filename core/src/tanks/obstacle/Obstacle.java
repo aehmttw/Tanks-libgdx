@@ -1,7 +1,10 @@
 package tanks.obstacle;
 
 import basewindow.IBatchRenderableObject;
+import basewindow.ShaderGroup;
 import tanks.*;
+import tanks.rendering.ShaderGroundObstacle;
+import tanks.rendering.ShaderObstacle;
 
 public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableWithGlow, IGameObject, IBatchRenderableObject
 {
@@ -18,6 +21,11 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 	 * If set to true, AI tanks will treat this block as breakable and shoot at it if there are tanks behind it
 	 */
 	public boolean shouldShootThrough = false;
+
+	/**
+	 * If set to a nonnegative value, will override how much AI controlled tanks will avoid pathfinding over this
+	 */
+	public int unfavorability = -1;
 
 	public boolean isSurfaceTile = false;
 
@@ -40,6 +48,8 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 	 * If set to true, will draw as a VBO. Set to false for simpler rendering of more dynamic obstacles.
 	 */
 	public boolean batchDraw = true;
+	public Class<? extends ShaderGroup> renderer = ShaderObstacle.class;
+	public Class<? extends ShaderGroup> tileRenderer = ShaderGroundObstacle.class;
 
 	public double posX;
 	public double posY;
@@ -58,9 +68,6 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 	public static double lastDrawSize = 0;
 
 	public boolean removed = false;
-	protected boolean redrawn = false;
-
-	public boolean requiresRedraw = false;
 
 	public String name;
 	public String description;
@@ -125,11 +132,11 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 
 				if (Obstacle.draw_size >= Game.tile_size)
 				{
-					if (i > 0)
-						option += 1;
+//					if (i > 0)
+//						option += 1;
 
-					if (i < Math.min(this.stackHeight, default_max_height) - 1)
-						option += 2;
+//					if (i < Math.min(this.stackHeight, default_max_height) - 1)
+//						option += 2;
 				}
 
 				double cutoff = -Math.min((i - 1 + stackHeight % 1.0) * Game.tile_size, 0);
@@ -150,7 +157,7 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 					if (Game.game.window.drawingShadow || !Game.shadowsEnabled)
 						options[i] = o;
 
-					drawing.fillBox(this, this.posX, this.posY, (i - 1 + stackHeight % 1.0) * Game.tile_size + cutoff + this.startHeight * Game.tile_size, draw_size, draw_size, draw_size - cutoff, o);
+					drawing.fillBox(this, this.posX, this.posY, (i - 1 + stackHeight % 1.0) * Game.tile_size + this.startHeight * Game.tile_size, draw_size, draw_size, draw_size, o);
 				}
 			}
 		}
@@ -267,13 +274,10 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 	 * @param d Tile height
 	 * @param extra The deepest tile next to the current tile, used to render sides underground
 	 */
-	public void drawTile(double r, double g, double b, double d, double extra)
+	public void drawTile(IBatchRenderableObject tile, double r, double g, double b, double d, double extra)
 	{
-		if (Obstacle.draw_size < Game.tile_size || extra != 0)
-		{
-			Drawing.drawing.setColor(r, g, b);
-			Drawing.drawing.fillBox(this, this.posX, this.posY, -extra, Game.tile_size, Game.tile_size, extra + d * (1 - Obstacle.draw_size / Game.tile_size));
-		}
+		Drawing.drawing.setColor(r, g, b);
+		Drawing.drawing.fillBox(tile, this.posX, this.posY, -extra, Game.tile_size, Game.tile_size, extra + d);
 	}
 
 	public void postOverride()
@@ -328,8 +332,8 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 
 	public boolean[] getValidHorizontalFaces(boolean unbreakable)
 	{
-		this.validFaces[0] = !this.hasNeighbor(0, -1, unbreakable) || this.startHeight > 1;
-		this.validFaces[1] = !this.hasNeighbor(0, 1, unbreakable) || this.startHeight > 1;
+		this.validFaces[0] = (!this.hasNeighbor(0, -1, unbreakable) || this.startHeight > 1) && !(!this.tankCollision && !this.bulletCollision);
+		this.validFaces[1] = (!this.hasNeighbor(0, 1, unbreakable) || this.startHeight > 1) && !(!this.tankCollision && !this.bulletCollision);
 		return this.validFaces;
 	}
 
@@ -349,8 +353,8 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 
 	public boolean[] getValidVerticalFaces(boolean unbreakable)
 	{
-		this.validFaces[0] = !this.hasNeighbor(-1, 0, unbreakable) || this.startHeight > 1;
-		this.validFaces[1] = !this.hasNeighbor(1, 0, unbreakable) || this.startHeight > 1;
+		this.validFaces[0] = (!this.hasNeighbor(-1, 0, unbreakable) || this.startHeight > 1) && !(!this.tankCollision && !this.bulletCollision);
+		this.validFaces[1] = (!this.hasNeighbor(1, 0, unbreakable) || this.startHeight > 1) && !(!this.tankCollision && !this.bulletCollision);
 		return this.validFaces;
 	}
 
@@ -376,6 +380,8 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 
 	public byte getOptionsByte(double h)
 	{
+		/* TODO: maybe re-implement pruning hidden obstacle faces, especially if adding obstacle grid
+
 		byte o = 0;
 
 		if (Obstacle.draw_size < Game.tile_size)
@@ -393,7 +399,9 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 		if (Game.sampleObstacleHeight(this.posX + Game.tile_size, this.posY) >= h)
 			o += 32;
 
-		return o;
+		return o;*/
+
+		return 0;
 	}
 
 	public void onDestroy(Movable source)
@@ -479,39 +487,8 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 		}
 	}
 
-	@Override
-	public boolean positionChanged()
+	public Effect getCompanionEffect()
 	{
-		if (removed)
-			return true;
-
-		boolean r = requiresRedraw;
-		requiresRedraw = false;
-
-		for (int i = 0; i < Math.min(this.stackHeight, default_max_height); i++)
-		{
-			if (options[i] != lastOptions[i])
-				r = true;
-
-			lastOptions[i] = options[i];
-		}
-
-		return r || lastDrawSize != draw_size;
-	}
-
-	@Override
-	public boolean colorChanged()
-	{
-		return this.removed;
-	}
-
-	public boolean wasRedrawn()
-	{
-		return this.redrawn;
-	}
-
-	public void setRedrawn(boolean b)
-	{
-		this.redrawn = b;
+		return null;
 	}
 }

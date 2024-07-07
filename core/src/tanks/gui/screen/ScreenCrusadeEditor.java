@@ -1,7 +1,10 @@
 package tanks.gui.screen;
 
 import basewindow.BaseFile;
-import tanks.*;
+import tanks.Crusade;
+import tanks.Drawing;
+import tanks.Game;
+import tanks.Level;
 import tanks.gui.Button;
 import tanks.gui.ButtonList;
 import tanks.gui.Selector;
@@ -232,7 +235,6 @@ public class ScreenCrusadeEditor extends Screen implements IItemScreen
                 , crusade.name.split("\\.")[0].replace("_", " "));
 
         crusadeName.enableCaps = true;
-        crusadeName.maxChars = 18;
 
         startingLives = new TextBox(Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY / 2 - 30, this.objWidth, this.objHeight, "Starting lives", () ->
         {
@@ -331,7 +333,7 @@ public class ScreenCrusadeEditor extends Screen implements IItemScreen
         {
             int j = i;
 
-            Button b = new Button(0, 0, this.objWidth, this.objHeight, this.crusade.crusadeItems.get(i).name, () -> Game.screen = new ScreenEditItem(crusade.crusadeItems.get(j), (IItemScreen) Game.screen));
+            Button b = new Button(0, 0, this.objWidth, this.objHeight, this.crusade.crusadeItems.get(i).name, () -> Game.screen = new ScreenItemEditor(crusade.crusadeItems.get(j), (IItemScreen) Game.screen));
 
             b.image = crusade.crusadeItems.get(j).icon;
             b.imageXOffset = - b.sizeX / 2 + b.sizeY / 2 + 10;
@@ -450,7 +452,7 @@ public class ScreenCrusadeEditor extends Screen implements IItemScreen
     public void addItem(Item i)
     {
         crusade.crusadeItems.add(i);
-        Game.screen = new ScreenEditItem(i, instance);
+        Game.screen = new ScreenItemEditor(i, instance);
     }
 
     @Override

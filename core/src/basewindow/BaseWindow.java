@@ -4,9 +4,13 @@ import basewindow.transformation.ScaleAboutPoint;
 import basewindow.transformation.Shear;
 import basewindow.transformation.Transformation;
 import basewindow.transformation.Translation;
+import com.badlogic.gdx.Gdx;
+import libgdxwindow.LibGDXWindow;
+import tanks.Game;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -25,6 +29,9 @@ public abstract class BaseWindow
     public double absoluteWidth;
     public double absoluteHeight;
     public double absoluteDepth;
+
+    public double clipMultiplier = 100;
+    public double clipDistMultiplier = 1;
 
     public boolean hasResized;
 
@@ -52,6 +59,8 @@ public abstract class BaseWindow
     public ArrayList<Integer> pressedButtons = new ArrayList<>();
     public ArrayList<Integer> validPressedButtons = new ArrayList<>();
 
+    public ArrayList<Character> inputCodepoints = new ArrayList<>();
+
     public boolean validScrollUp;
     public boolean validScrollDown;
 
@@ -67,7 +76,7 @@ public abstract class BaseWindow
     public double keyboardFraction = 1;
 
     public ArrayList<Long> framesList = new ArrayList<>();
-    public long lastFrame = System.currentTimeMillis();
+    public long lastFrame = System.nanoTime();
     public double frameFrequency = 1;
 
     public String name;
@@ -88,6 +97,7 @@ public abstract class BaseWindow
 
     public Transformation[] baseTransformations = new Transformation[]{new Translation(this, -0.5, -0.5, -1)};
     public Transformation[] lightBaseTransformation = new Transformation[]{new ScaleAboutPoint(this, 0.8, 0.8, 0.8, 0.5, 0.5, 0.5), new Shear(this, 0, 0, 0, 0, 0.5, 0.5)};
+    public double[] lightVec = new double[]{-0.66666666, 0.66666666, -0.33333333};
 
     public BaseSoundPlayer soundPlayer;
     public boolean soundsEnabled = false;
@@ -105,6 +115,15 @@ public abstract class BaseWindow
     public BasePlatformHandler platformHandler;
 
     public ModelPart.ShapeDrawer shapeDrawer;
+
+    public ShaderGroup shaderDefault;
+
+    public ShaderBones shaderBaseBones;
+    public ShaderShadowMapBones shaderShadowMapBones;
+
+    public ShaderGroup currentShaderGroup;
+
+    public ShaderProgram currentShader;
 
     public BaseWindow(String name, int x, int y, int z, IUpdater u, IDrawer d, IWindowHandler w, boolean vsync, boolean showMouse)
     {
@@ -187,7 +206,7 @@ public abstract class BaseWindow
 
     public abstract void setVsync(boolean enable);
 
-    public abstract ArrayList<Integer> getRawTextKeys();
+    public abstract ArrayList<Character> getRawTextKeys();
 
     public abstract String getKeyText(int key);
 
@@ -204,6 +223,8 @@ public abstract class BaseWindow
     public abstract double getEdgeBounds();
 
     public abstract void createImage(String image, InputStream in);
+
+    public abstract void setUpscaleImages(boolean upscaleImages);
 
     public abstract void setTextureCoords(double u, double v);
 
@@ -225,6 +246,16 @@ public abstract class BaseWindow
 
     public abstract void setLighting(double light, double glowLight, double shadow, double glowShadow);
 
+    public abstract void setMaterialLights(float[] ambient, float[] diffuse, float[] specular, double shininess);
+
+    public abstract void setMaterialLights(float[] ambient, float[] diffuse, float[] specular, double shininess, double minBound, double maxBound, boolean enableNegative);
+
+    public abstract void disableMaterialLights();
+
+    public abstract void setCelShadingSections(float sections);
+
+    public abstract void createLights(ArrayList<double[]> lights, double scale);
+
     public abstract void addMatrix();
 
     public abstract void removeMatrix();
@@ -233,13 +264,58 @@ public abstract class BaseWindow
 
     public abstract void setMatrixModelview();
 
+    public abstract float[] getTransformedMouse();
+
+    public abstract float[] getTransformedMouse(double x, double y);
+
     public abstract ModelPart createModelPart();
 
     public abstract ModelPart createModelPart(Model model, ArrayList<ModelPart.Shape> shapes, Model.Material material);
 
     public abstract PosedModel createPosedModel(Model m);
 
+    public abstract BaseShapeBatchRenderer createStaticBatchRenderer(ShaderGroup shader, boolean color, String texture, boolean normal, int vertices);
+
     public abstract BaseShapeBatchRenderer createShapeBatchRenderer();
+
+    public abstract BaseShapeBatchRenderer createShapeBatchRenderer(ShaderGroup shader);
+
+    public abstract BaseShaderUtil getShaderUtil(ShaderProgram p);
+
+    public void setShader(ShaderBase s)
+    {
+        ShaderBase old = null;
+        if (this.currentShaderGroup != null)
+            old = this.currentShaderGroup.shaderBase;
+
+        try
+        {
+            s.set();
+            this.currentShaderGroup = s.group;
+            this.currentShader = s;
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+
+        if (old != null)
+            s.copyUniformsFrom(old, ShaderBase.class);
+    }
+
+    public void setShader(ShaderShadowMap s)
+    {
+        ShaderShadowMap old = null;
+        if (this.currentShaderGroup != null)
+            old = this.currentShaderGroup.shaderShadowMap;
+
+        s.set();
+        this.currentShaderGroup = s.group;
+        this.currentShader = s;
+
+        if (old != null)
+            s.copyUniformsFrom(old, ShaderShadowMap.class);
+    }
 
     public void setupKeyCodes()
     {

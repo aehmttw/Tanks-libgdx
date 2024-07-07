@@ -69,6 +69,13 @@ public abstract class ScreenLevelEditorOverlay extends Screen implements ILevelP
     }
 
     @Override
+    public void setupLights()
+    {
+        this.screenLevelEditor.setupLights();
+    }
+
+
+    @Override
     public void draw()
     {
         this.screenLevelEditor.draw();

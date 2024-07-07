@@ -1,8 +1,6 @@
 package tanks.extension;
 
 import tanks.Game;
-import tanks.ModAPI;
-import tanks.minigames.Minigame;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;

@@ -3,17 +3,19 @@ package libgdxwindow;
 import basewindow.BaseFontRenderer;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-
-import java.util.HashMap;
 
 public class LibGDXFontRenderer extends BaseFontRenderer
 {
     String chars;
     int[] charSizes;
     String image;
-    public SpriteBatch spriteBatch;
+
+    //how many characters fit per horizontal line
+    public float size = 16;
+
+    //spacing between rows, increase this to 2 for antialiasing to prevent weird artifacts
+    public int hSpace = 2;
 
     public LibGDXFontRenderer(LibGDXWindow h, String fontFile)
     {
@@ -39,7 +41,6 @@ public class LibGDXFontRenderer extends BaseFontRenderer
                 };
 
         this.image = fontFile;
-        this.spriteBatch = h.spriteBatch;
     }
 
     protected int drawChar(double x, double y, double z, double sX, double sY, char c, boolean depthtest)
@@ -52,20 +53,36 @@ public class LibGDXFontRenderer extends BaseFontRenderer
         int col = i % 16;
         int row = i / 16;
         int width = charSizes[i];
-        ((LibGDXWindow)this.window).drawLinkedImage(x, y - sY * 16, z, sX, sY - 0.001, col / 16f, row / 8f, (col + width / 8f) / 16f, 2 / 16f + row / 8f, image, true, depthtest);
+        ((LibGDXWindow) this.window).drawLinkedImage(x, y - sY * 16, z, sX * 32 * size, sY * 32 * size,
+                col / size, (row * hSpace) / size,
+                (col + width / 8f) / size, (row * hSpace + 2) / size);
+
         return width;
+    }
+
+    @Override
+    public boolean supportsChar(char c)
+    {
+        return this.chars.contains(c + "");
     }
 
     public void drawString(double x, double y, double z, double sX, double sY, String s)
     {
-        ((LibGDXWindow)this.window).setDrawMode(7, true, true, 6 * s.length());
+        if (window.drawingShadow)
+            return;
 
-        Gdx.gl20.glEnable(GL20.GL_DEPTH_TEST);
-        spriteBatch.getProjectionMatrix().translate(0, 0, (float) (z));
-        spriteBatch.begin();
+        //((LibGDXWindow)this.window).setDrawMode(7, true, true, 6 * s.length());
+
+//        Gdx.gl20.glEnable(GL20.GL_DEPTH_TEST);
+//        spriteBatch.setProjectionMatrix(((LibGDXWindow) this.window).projectionMatrix);
+//        spriteBatch.setTransformMatrix(((LibGDXWindow) this.window).modelviewMatrix);
+//        spriteBatch.getProjectionMatrix().translate(0, 0, (float) (z));
+        //spriteBatch.begin();
 
         double curX = x;
         char[] c = s.toCharArray();
+
+        ((LibGDXWindow) this.window).beginLinkedImages(image, false, true);
 
         for (int i = 0; i < c.length; i++)
         {
@@ -85,23 +102,28 @@ public class LibGDXFontRenderer extends BaseFontRenderer
                 curX += (drawChar(curX, y, z, sX, sY, c[i], true) + 1) * sX * 4;
         }
 
-        spriteBatch.end();
-        spriteBatch.getProjectionMatrix().translate(0, 0, (float) (-z));
+        ((LibGDXWindow) this.window).endLinkedImages();
 
-        Gdx.gl20.glDisable(GL20.GL_DEPTH_TEST);
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        //spriteBatch.end();
+        //spriteBatch.getProjectionMatrix().translate(0, 0, (float) (-z));
+
+//        Gdx.gl20.glDisable(GL20.GL_DEPTH_TEST);
+//        Gdx.gl.glEnable(GL20.GL_BLEND);
+//        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
     }
 
     public void drawString(double x, double y, double sX, double sY, String s)
     {
-        ((LibGDXWindow)this.window).setDrawMode(7, false, true, 6 * s.length());
+        ((LibGDXWindow)this.window).setDrawMode(-1, false, false, 6 * s.length());
+
+        if (window.drawingShadow)
+            return;
 
         Gdx.gl20.glDisable(GL20.GL_DEPTH_TEST);
         double curX = x;
         char[] c = s.toCharArray();
 
-        spriteBatch.begin();
+        ((LibGDXWindow) this.window).beginLinkedImages(image, false, false);
 
         for (int i = 0; i < c.length; i++)
         {
@@ -121,7 +143,7 @@ public class LibGDXFontRenderer extends BaseFontRenderer
                 curX += (drawChar(curX, y, 0, sX, sY, c[i], false) + 1) * sX * 4;
         }
 
-        spriteBatch.end();
+        ((LibGDXWindow) this.window).endLinkedImages();
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
     }

@@ -17,6 +17,8 @@ public class ScreenOptionsPartyHost extends Screen
     public static final String defaultText = "\u00A7000200000255default";
     public static final String disabledText = "\u00A7200000000255off";
 
+    public boolean fromParty = false;
+
     Button anticheat = new Button(this.centerX, this.centerY + this.objYSpace * 1, this.objWidth, this.objHeight, "", new Runnable()
     {
         @Override
@@ -59,11 +61,11 @@ public class ScreenOptionsPartyHost extends Screen
                 disableFriendlyFire.setText(disableFriendlyFireText, defaultText);
         }
     },
-            "Disables all friendly fire in the party.---Useful for co-op in bigger parties.");
+            "Disables all friendly fire in the party.---Tanks on the same team will---not damage each other.---Useful for co-op in bigger parties.");
 
     Button back = new Button(this.centerX, this.centerY + this.objYSpace * 3.5, this.objWidth, this.objHeight, "Back", () ->
     {
-        if (ScreenPartyHost.isServer)
+        if (fromParty)
         {
             Game.screen = ScreenPartyHost.activeScreen;
             ScreenOptions.saveOptions(Game.homedir);

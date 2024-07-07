@@ -2,13 +2,14 @@ package tanks.gui.screen;
 
 import tanks.Drawing;
 import tanks.Game;
-import tanks.network.event.EventChat;
 import tanks.gui.Button;
 import tanks.gui.ChatBox;
 import tanks.gui.ChatMessage;
 import tanks.network.Client;
 import tanks.network.ConnectedPlayer;
 import tanks.network.SynchronizedList;
+import tanks.network.event.EventChat;
+import tanks.tank.Tank;
 import tanks.translation.Translation;
 
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ public class ScreenPartyLobby extends Screen
 	public static ArrayList<ConnectedPlayer> connections = new ArrayList<>();
 	public static boolean isClient = false;
 	public static ArrayList<UUID> includedPlayers = new ArrayList<>();
-	public static ArrayList<String> readyPlayers = new ArrayList<>();
+	public static ArrayList<ConnectedPlayer> readyPlayers = new ArrayList<>();
 	public static int remainingLives = 0;
 	public static HashMap<UUID, String> stats = new HashMap<>();
 
@@ -46,11 +47,11 @@ public class ScreenPartyLobby extends Screen
 		this.music = "menu_4.ogg";
 		this.musicID = "menu";
 
-		ScreenPartyLobby.chatbox = new ChatBox(Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY - 30, Drawing.drawing.interfaceSizeX - 20, 40, Game.game.input.chat, () -> Game.eventsOut.add(new EventChat(ScreenPartyLobby.chatbox.inputText)));
+		ScreenPartyLobby.chatbox = new ChatBox(Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.getInterfaceEdgeY(true) - 30, Drawing.drawing.interfaceSizeX - 20, 40, Game.game.input.chat, () -> Game.eventsOut.add(new EventChat(ScreenPartyLobby.chatbox.inputText)));
 	}
 
-	Button exit = new Button(Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY / 2 + 270, this.objWidth, this.objHeight, "Leave party", () -> Game.screen = new ScreenConfirmLeaveParty()
-	);
+	Button exit = new Button(Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY / 2 + 270, this.objWidth, this.objHeight, "Leave party", () -> Game.screen = new ScreenConfirmLeaveParty());
+	Button options = new Button(Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY / 2 + 210, this.objWidth, this.objHeight, "Options", () -> Game.screen = new ScreenOptions());
 
 	Button nextUsernamePage = new Button(Drawing.drawing.interfaceSizeX / 2 + username_x_offset,
 			Drawing.drawing.interfaceSizeY / 2 + username_y_offset + username_spacing * (1 + entries_per_page), 300, 30, "Next page", () -> usernamePage++
@@ -70,6 +71,7 @@ public class ScreenPartyLobby extends Screen
 	public void update()
 	{
 		exit.update();
+		options.update();
 
 		if (this.usernamePage > 0)
 			this.previousUsernamePage.update();
@@ -127,14 +129,16 @@ public class ScreenPartyLobby extends Screen
 
 
 			exit.draw();
+			options.draw();
 			shared.draw();
 			share.draw();
 
 			if (connections != null)
 			{
-				for (int i = this.usernamePage * entries_per_page; i < Math.min(((this.usernamePage + 1) * entries_per_page), connections.size()); i++)
+				for (int i = (int) (this.usernamePage * entries_per_page + Math.signum(this.usernamePage)); i < Math.min(((this.usernamePage + 1) * entries_per_page + 1), connections.size()); i++)
 				{
-					if (connections.get(i).username != null)
+					ConnectedPlayer c = connections.get(i);
+					if (c.username != null)
 					{
 						String n = connections.get(i).username;
 						if (connections.get(i).clientId.equals(Game.clientID))
@@ -142,14 +146,15 @@ public class ScreenPartyLobby extends Screen
 						else if (i == 0)
 							n = "\u00A7000200000255" + n;
 
+						Drawing.drawing.setBoundedInterfaceFontSize(this.textSize, 250, n);
+						double y = Drawing.drawing.interfaceSizeY / 2 + (i - this.usernamePage * entries_per_page) * username_spacing + username_y_offset;
 						Drawing.drawing.setColor(0, 0, 0);
-						Drawing.drawing.drawInterfaceText(Drawing.drawing.interfaceSizeX / 2 + username_x_offset,
-								Drawing.drawing.interfaceSizeY / 2 + (1 + i - this.usernamePage * entries_per_page) * username_spacing + username_y_offset,
-								n);
+						Drawing.drawing.drawInterfaceText(Drawing.drawing.interfaceSizeX / 2 + username_x_offset, y, n);
+
+						Tank.drawTank(this.centerX - Drawing.drawing.getStringWidth(n) / 2 - 230, y, c.colorR, c.colorG, c.colorB, c.colorR2, c.colorG2, c.colorB2);
 					}
 				}
 			}
 		}
 	}
-
 }

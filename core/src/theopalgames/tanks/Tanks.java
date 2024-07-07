@@ -4,20 +4,14 @@ import basewindow.BasePlatformHandler;
 import basewindow.BaseVibrationPlayer;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.ApplicationAdapter;
-import com.badlogic.gdx.Files;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.audio.Music;
-import com.badlogic.gdx.graphics.GL20;
 import libgdxwindow.LibGDXFileManager;
-import libgdxwindow.LibGDXSoundPlayer;
 import libgdxwindow.LibGDXWindow;
 import tanks.Game;
 import tanks.GameDrawer;
 import tanks.GameUpdater;
 import tanks.GameWindowHandler;
 import tanks.gui.screen.ScreenExit;
-
-import java.net.Inet4Address;
 
 public class Tanks extends ApplicationAdapter
 {
@@ -42,16 +36,17 @@ public class Tanks extends ApplicationAdapter
 		Game.framework = Game.Framework.libgdx;
 		Game.initScript();
 		Game.game.window = window;
-		Game.debug = true;
 	}
 
 	@Override
 	public void create()
 	{
 		instance = this;
+		Game.debug = true;
 
 		window.absoluteWidth = Gdx.graphics.getWidth();
 		window.absoluteHeight = Gdx.graphics.getHeight();
+
 		window.absoluteDepth = 1000;
 
 		window.initialize();
@@ -76,7 +71,7 @@ public class Tanks extends ApplicationAdapter
 		window.absoluteWidth = width;
 		window.absoluteHeight = height;
 
-		window.updatePerspective();
+		window.loadPerspective();
 	}
 
 	@Override
@@ -105,23 +100,5 @@ public class Tanks extends ApplicationAdapter
 	public void resume()
 	{
 		window.lastFrame = System.currentTimeMillis();
-
-		LibGDXSoundPlayer soundPlayer = (LibGDXSoundPlayer) window.soundPlayer;
-		if (soundPlayer.musicID != null && soundPlayer.combinedMusicMap.get(soundPlayer.musicID) != null)
-		{
-			float pos = soundPlayer.currentMusic.getPosition();
-			long time = System.currentTimeMillis();
-
-			for (Music m: soundPlayer.combinedMusicMap.get(soundPlayer.musicID))
-			{
-				m.stop();
-			}
-
-			for (Music m: soundPlayer.combinedMusicMap.get(soundPlayer.musicID))
-			{
-				m.setPosition(pos + (System.currentTimeMillis() - time) / 1000f);
-				m.play();
-			}
-		}
 	}
 }
