@@ -5,13 +5,16 @@ import basewindow.transformation.*;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.BufferUtils;
+import com.badlogic.gdx.utils.ScreenUtils;
 import tanks.Game;
 import theopalgames.tanks.Tanks;
 
@@ -136,7 +139,7 @@ public class LibGDXWindow extends BaseWindow
         fontRenderer = new LibGDXFontRenderer(this, "font.png");
 
         this.soundsEnabled = true;
-        this.soundPlayer = new LibGDXSoundPlayer(this);
+        this.soundPlayer = new LibGDXAsyncMiniAudioSoundPlayer(this);
 
         this.antialiasingSupported = true;
 
@@ -366,7 +369,7 @@ public class LibGDXWindow extends BaseWindow
                     (float) absoluteHeight,
                     (float) 0,
                     (float) -absoluteDepth,
-                    (float) absoluteDepth);
+                    (float) absoluteDepth / 8);
         else
             projectionMatrix.idt().setToProjection(
                     (float)(-absoluteWidth / (absoluteDepth * 2.0) * m),
@@ -454,6 +457,62 @@ public class LibGDXWindow extends BaseWindow
 
         this.currentVertices += vertices;
     }
+
+    public void clearDepthBG()
+    {
+        this.light = false;
+        this.glow = false;
+        this.currentDrawMode = GL_TRIANGLES;
+        this.depthTest = false;
+        this.depthMask = false;
+
+        this.colorGlow = 0;
+
+        if (this.currentShader != null)
+        {
+            if (!drawingShadow)
+                this.currentShader.group.shaderBase.glow.set((float) colorGlow);
+
+            if (depthTest)
+            {
+                enableDepthtest();
+                Gdx.gl.glDepthFunc(GL_LEQUAL);
+            }
+            else
+            {
+                disableDepthtest();
+                Gdx.gl.glDepthFunc(GL20.GL_ALWAYS);
+            }
+        }
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+
+        if (light)
+            Gdx.gl.glBlendFunc(GL20.GL_DST_COLOR, GL20.GL_ONE);
+        else if (!glow)
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        else
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_COLOR, GL20.GL_ONE);
+
+        Gdx.gl.glDepthMask(depthMask);
+        this.renderer.begin(this.projectionMatrix, GL_TRIANGLES);
+        this.color = new Color(1, 1, 1, 1);
+        this.setDrawMode(GL20.GL_TRIANGLES, false, this.color.a >= 1, 6);
+        this.renderer.color(this.color);
+        this.renderer.vertex((float) 0, (float) 0, 0);
+        this.renderer.color(this.color);
+        this.renderer.vertex((float) this.absoluteWidth, 0, 0);
+        this.renderer.color(this.color);
+        this.renderer.vertex((float) this.absoluteWidth, (float) this.absoluteHeight, 0);
+
+        this.renderer.color(this.color);
+        this.renderer.vertex(0, 0, 0);
+        this.renderer.color(this.color);
+        this.renderer.vertex(0, (float) this.absoluteHeight, 0);
+        this.renderer.color(this.color);
+        this.renderer.vertex((float) this.absoluteWidth, (float) this.absoluteHeight, 0);
+    }
+
 
     public void render()
     {
@@ -848,7 +907,11 @@ public class LibGDXWindow extends BaseWindow
     public void stopTexture()
     {
         Gdx.gl.glDisable(GL_TEXTURE_2D);
+        this.renderer.end();
         this.renderer = notexRenderer;
+        int mode = this.currentDrawMode;
+        this.setDrawMode(-1, this.depthTest, this.depthMask, this.glow, this.light, 0, this.colorGlow);
+        this.setDrawMode(mode, this.depthTest, this.depthMask, this.glow, this.light, 0, this.colorGlow);
         this.disableTexture();
     }
 

@@ -126,7 +126,7 @@ public class LibGDXImmediateModeRenderer implements ImmediateModeRenderer
 
     public void texCoord(float u, float v)
     {
-        if (!running)
+        if (!running || !texCoords)
             return;
 
         final int idx = vertexIdx + texCoordOffset;

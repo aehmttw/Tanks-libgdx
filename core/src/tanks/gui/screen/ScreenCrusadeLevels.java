@@ -1,9 +1,6 @@
 package tanks.gui.screen;
 
-import basewindow.transformation.RotationAboutPoint;
-import basewindow.transformation.ScaleAboutPoint;
-import basewindow.transformation.Transformation;
-import basewindow.transformation.Translation;
+import basewindow.transformation.*;
 import tanks.*;
 import tanks.obstacle.Obstacle;
 import tanks.rendering.StaticTerrainRenderer;
@@ -37,7 +34,7 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
     protected Translation translation = new Translation(Game.game.window, 0, 0, 0);
 
     double shadowScaleNum = 0.2;
-    protected ScaleAboutPoint shadowScale = new ScaleAboutPoint(Game.game.window, shadowScaleNum, shadowScaleNum, shadowScaleNum, 0.5, 0.5, 0.5);
+    protected ScaleAboutPoint shadowScale = new ScaleAboutPoint(Game.game.window, shadowScaleNum, shadowScaleNum, 1.0, 0.5, 0.5, 0.5);
 
     protected ArrayList<ScreenLevel> levels = new ArrayList<>();
     protected HashMap<Integer, ScreenLevel> levelsPos = new HashMap<>();
@@ -184,10 +181,11 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
         Transformation prevShadow = Game.game.window.lightBaseTransformation[0];
         Game.game.window.lightBaseTransformation[0] = this.shadowScale;
 
+        if (Game.framework == Game.Framework.libgdx)
+            Game.game.window.clipMultiplier /= 2.0;
+
         if (Game.enable3d)
-        {
             Game.game.window.transformations.add(this.transform);
-        }
 
         Game.game.window.loadPerspective();
 
@@ -340,8 +338,12 @@ public class ScreenCrusadeLevels extends Screen implements ILevelPreviewScreen
         Game.movables = movables;
         Game.obstacles = obstacles;
 
+        if (Game.framework == Game.Framework.libgdx)
+            Game.game.window.clipMultiplier *= 2.0;
+
         Game.game.window.transformations.remove(this.transform);
         Game.game.window.transformations.remove(this.translation);
+
         Game.game.window.loadPerspective();
         Game.game.window.lightBaseTransformation[0] = prevShadow;
     }

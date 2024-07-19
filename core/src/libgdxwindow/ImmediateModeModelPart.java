@@ -1,5 +1,7 @@
 package libgdxwindow;
 
+import com.badlogic.gdx.Gdx;
+
 import basewindow.BaseWindow;
 import basewindow.Model;
 import basewindow.ModelPart;
@@ -13,6 +15,7 @@ public class ImmediateModeModelPart extends ModelPart
     @Override
     public void draw(double posX, double posY, double posZ, double sX, double sY, double sZ, double yaw, double pitch, double roll, boolean depthTest)
     {
+        window.shapeRenderer.setBatchMode(false, false, false);
         window.shapeRenderer.setBatchMode(true, false, depthTest);
 
         double r = window.colorR * 255;
@@ -48,6 +51,7 @@ public class ImmediateModeModelPart extends ModelPart
     @Override
     public void draw(double posX, double posY, double sX, double sY, double yaw)
     {
+        window.shapeRenderer.setBatchMode(false, false, false);
         window.shapeRenderer.setBatchMode(true, false, false);
 
         double r = window.colorR * 255;

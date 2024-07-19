@@ -11,8 +11,11 @@ import android.view.WindowManager;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
+import com.badlogic.gdx.backends.android.AndroidAudio;
 import com.badlogic.gdx.backends.android.AndroidFiles;
 import com.badlogic.gdx.backends.android.DefaultAndroidFiles;
+
+import libgdxwindow.LibGDXAsyncMiniAudioSoundPlayer;
 import tanks.Game;
 
 import java.net.Inet4Address;
@@ -58,5 +61,12 @@ public class AndroidLauncher extends AndroidApplication
 		Tanks.platformHandler = new AndroidPlatformHandler();
 
 		initialize(new Tanks(), config);
+	}
+
+	@Override
+	public AndroidAudio createAudio (Context context, AndroidApplicationConfiguration config)
+	{
+		LibGDXAsyncMiniAudioSoundPlayer.miniAudio.setupAndroid(context.getAssets());
+		return super.createAudio(context, config);
 	}
 }

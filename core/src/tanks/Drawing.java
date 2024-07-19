@@ -1121,13 +1121,13 @@ public class Drawing
 
 	public void addSyncedMusic(String sound, float volume, boolean looped, long fadeTime)
 	{
-		if (Game.game.window.soundsEnabled && Game.musicEnabled)
+		if (Game.game.window.soundsEnabled && Game.musicEnabled && Game.enableLayeredMusic)
 			Game.game.window.soundPlayer.addSyncedMusic("/music/" + sound, volume, looped, fadeTime);
 	}
 
 	public void removeSyncedMusic(String sound, long fadeTime)
 	{
-		if (Game.game.window.soundsEnabled && Game.musicEnabled)
+		if (Game.game.window.soundsEnabled && Game.musicEnabled && Game.enableLayeredMusic)
 			Game.game.window.soundPlayer.removeSyncedMusic("/music/" + sound, fadeTime);
 	}
 
@@ -1422,7 +1422,7 @@ public class Drawing
 					+ Drawing.drawing.interfaceSizeX - Game.game.window.getEdgeBounds() / Drawing.drawing.interfaceScale;
 		else
 			return (Game.game.window.absoluteWidth / Drawing.drawing.interfaceScale - Drawing.drawing.interfaceSizeX) / 2
-				+ Drawing.drawing.interfaceSizeX - Game.game.window.getEdgeBounds() / Drawing.drawing.interfaceScale;
+					+ Drawing.drawing.interfaceSizeX - Game.game.window.getEdgeBounds() / Drawing.drawing.interfaceScale;
 	}
 
 	/**

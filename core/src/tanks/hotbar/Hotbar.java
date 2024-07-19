@@ -33,6 +33,9 @@ public class Hotbar
 
 	public void update()
 	{
+		Hotbar.toggle.posX = Drawing.drawing.interfaceSizeX / 2;
+		Hotbar.toggle.posY = (int) (Drawing.drawing.getInterfaceEdgeY(true) - 12);
+
 		if (Game.game.window.touchscreen)
 		{
 			this.verticalOffset = 20;
@@ -71,12 +74,14 @@ public class Hotbar
 	{
 		if (Game.game.window.touchscreen)
 		{
+			int y = (int) (Drawing.drawing.getInterfaceEdgeY(true) - 12);
+
 			Drawing.drawing.setColor(255, 255, 255, 64);
 
 			if (!this.persistent)
-				Drawing.drawing.drawInterfaceImage("icons/widearrow.png", Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY - 12, 64, 16);
+				Drawing.drawing.drawInterfaceImage("icons/widearrow.png", Drawing.drawing.interfaceSizeX / 2, y, 64, 16);
 			else
-				Drawing.drawing.drawInterfaceImage("icons/widearrow.png", Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY - 12, 64, -16);
+				Drawing.drawing.drawInterfaceImage("icons/widearrow.png", Drawing.drawing.interfaceSizeX / 2, y, 64, -16);
 		}
 
 		if (this.enabledItemBar)

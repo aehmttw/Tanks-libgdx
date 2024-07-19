@@ -6,11 +6,13 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.files.FileHandle;
+import tanks.Game;
+import tanks.network.SynchronizedList;
 
 import java.io.InputStream;
 import java.util.*;
 
-public class LibGDXSoundPlayer extends BaseSoundPlayer
+public class LibGDXAsyncSoundPlayer extends BaseSoundPlayer
 {
     public LibGDXWindow window;
 
@@ -22,8 +24,7 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
     public HashMap<String, Float> syncedTrackCurrentVolumes = new HashMap<>();
     public HashMap<String, Float> syncedTrackMaxVolumes = new HashMap<>();
     public HashMap<String, Float> syncedTrackFadeRate = new HashMap<>();
-
-    protected LinkedHashMap<String, SyncedMusicCommand> syncedMusicCommands = new LinkedHashMap<>();
+    protected ArrayList<String> removeTracks = new ArrayList<>();
 
     public HashMap<String, Music> musicMap = new HashMap<>();
 
@@ -42,9 +43,12 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
     public boolean currentMusicStoppable = true;
     public boolean prevMusicStoppable = true;
 
+    public final Queue<MusicCommand> musicCommands = new LinkedList<>();
+    ArrayList<MusicCommand> tempMusicCommands = new ArrayList<>();
+
     public float latency = 0.086f;
 
-    public LibGDXSoundPlayer(LibGDXWindow window)
+    public LibGDXAsyncSoundPlayer(LibGDXWindow window)
     {
         this.window = window;
         if (Gdx.app.getType() == Application.ApplicationType.Android)
@@ -98,6 +102,25 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
                 }
             }
         }
+
+        new Thread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                while (true)
+                {
+                    try
+                    {
+                        updateAsync();
+                    }
+                    catch (Exception e)
+                    {
+                        Game.exitToCrash(e);
+                    }
+                }
+            }
+        }).start();
     }
 
     @Override
@@ -125,7 +148,7 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
             path = path.substring(1);
 
         Long last = lastPlayed.get(path);
-        if (last != null && System.currentTimeMillis() - last < 100)
+        if (last != null && System.currentTimeMillis() - last < 100 && Gdx.app.getType() == Application.ApplicationType.iOS)
             return;
 
         lastPlayed.put(path, System.currentTimeMillis());
@@ -146,6 +169,79 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
         }
 
         s.play(volume, pitch, 0);
+    }
+
+    public abstract class MusicCommand
+    {
+        public abstract void execute();
+    }
+
+    public class PlayMusicCommand extends MusicCommand
+    {
+        String path;
+        float volume;
+        boolean looped;
+        String continueID;
+        long fadeTime;
+        boolean stoppable;
+
+        public PlayMusicCommand(String path, float volume, boolean looped, String continueID, long fadeTime, boolean stoppable)
+        {
+            this.path = path;
+            this.volume = volume;
+            this.looped = looped;
+            this.continueID = continueID;
+            this.fadeTime = fadeTime;
+            this.stoppable = stoppable;
+        }
+
+        public void execute()
+        {
+            Music m = getMusic(path);
+
+            if (currentMusic == m)
+            {
+                m.setVolume(volume);
+                return;
+            }
+
+            if (prevMusic != null)
+                prevMusic.stop();
+
+            prevMusic = currentMusic;
+            currentMusic = m;
+            currentVolume = volume;
+
+            m.play();
+            m.setLooping(looped);
+            m.setVolume(volume);
+
+            fadeBegin = System.currentTimeMillis();
+            if (continueID != null && continueID.equals(musicID))
+            {
+                float p = prevMusic.getPosition();
+                m.setPosition(p + latency);
+                m.setVolume(0);
+
+                fadeEnd = System.currentTimeMillis() + fadeTime;
+            }
+            else
+            {
+                for (Music s: syncedTracks.values())
+                    s.stop();
+
+                syncedTracks.clear();
+                stoppingSyncedTracks.clear();
+                syncedTrackMaxVolumes.clear();
+                syncedTrackCurrentVolumes.clear();
+                syncedTrackFadeRate.clear();
+
+                fadeEnd = System.currentTimeMillis();
+            }
+
+            prevVolume = volume;
+            musicID = continueID;
+        }
     }
 
     @Override
@@ -175,54 +271,38 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
     @Override
     public void playMusic(String path, float volume, boolean looped, String continueID, long fadeTime, boolean stoppable)
     {
-        Music m = getMusic(path);
-
-        if (prevMusic != null)
-            prevMusic.stop();
-
-        prevMusic = currentMusic;
-        currentMusic = m;
-        currentVolume = volume;
-
-        m.play();
-        m.setLooping(looped);
-        m.setVolume(volume);
-
-        fadeBegin = System.currentTimeMillis();
-        if (continueID != null && continueID.equals(this.musicID))
+        synchronized (this.musicCommands)
         {
-            float p = prevMusic.getPosition();
-            m.setPosition(p + latency);
-            m.setVolume(0);
-
-            fadeEnd = System.currentTimeMillis() + fadeTime;
+            this.musicCommands.add(new PlayMusicCommand(path, volume, looped, continueID, fadeTime, stoppable));
         }
-        else
+    }
+
+    public class SetMusicVolumeCommand extends MusicCommand
+    {
+        float volume;
+        public SetMusicVolumeCommand(float volume)
         {
-            for (String s: this.syncedTracks.keySet())
-            {
-                this.syncedTrackFadeRate.put(s, -1.0f);
-                this.syncedMusicCommands.put(s, SyncedMusicCommand.remove(s));
-            }
-
-            if (prevMusic != null)
-                prevMusic.stop();
-
-            fadeEnd = System.currentTimeMillis();
+            this.volume = volume;
         }
 
-        prevVolume = volume;
-        this.musicID = continueID;
+        @Override
+        public void execute()
+        {
+            currentVolume = volume;
+            currentMusic.setVolume(volume);
+
+            for (Music m: syncedTracks.values())
+                m.setVolume(volume);
+        }
     }
 
     @Override
     public void setMusicVolume(float volume)
     {
-        this.currentVolume = volume;
-        this.currentMusic.setVolume(volume);
-
-        for (Music m: this.syncedTracks.values())
-            m.setVolume(volume);
+        synchronized (this.musicCommands)
+        {
+            this.musicCommands.add(new SetMusicVolumeCommand(volume));
+        }
     }
 
     @Override
@@ -231,126 +311,122 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
 
     }
 
-    protected static class SyncedMusicCommand
+    public class StopMusicCommand extends MusicCommand
     {
-        boolean remove;
-        String path;
-        float volume;
-        boolean looped;
-        long fadeTime;
-
-        public static SyncedMusicCommand add(String path, float volume, boolean looped, long fadeTime)
+        public StopMusicCommand()
         {
-            SyncedMusicCommand cmd = new SyncedMusicCommand();
-            cmd.remove = false;
-            cmd.path = path;
-            cmd.volume = volume;
-            cmd.looped = looped;
-            cmd.fadeTime = fadeTime;
-            return cmd;
+
         }
 
-        public static SyncedMusicCommand remove(String path)
+        @Override
+        public void execute()
         {
-            SyncedMusicCommand cmd = new SyncedMusicCommand();
-            cmd.remove = true;
-            cmd.path = path;
-            return cmd;
-        }
+            if (currentMusic != null)
+                currentMusic.stop();
 
-        public String toString()
-        {
-            if (remove)
-                return "-" + this.path;
-            else
-                return "+" + this.path;
-        }
-    }
+            if (prevMusic != null)
+                prevMusic.stop();
 
-    @Override
-    public void addSyncedMusic(String path, float volume, boolean looped, long fadeTime)
-    {
-        this.syncedMusicCommands.put(path, SyncedMusicCommand.add(path, volume, looped, fadeTime));
-    }
+            currentMusic = null;
+            prevMusic = null;
+            musicID = null;
 
-    @Override
-    public void removeSyncedMusic(String path, long fadeTime)
-    {
-        Music m = this.syncedTracks.get(path);
-        this.syncedMusicCommands.remove(path);
+            for (Music s: syncedTracks.values())
+                s.stop();
 
-        if (m != null)
-        {
-            this.stoppingSyncedTracks.put(path, m);
-            this.syncedTrackFadeRate.put(path, -this.syncedTrackMaxVolumes.get(path) / fadeTime * 10);
-        }
-    }
-
-    protected void updateSyncedMusic()
-    {
-        while (true)
-        {
-            System.out.println(syncedMusicCommands.size());
-            Iterator<String> irritator = this.syncedMusicCommands.keySet().iterator();
-            if (!irritator.hasNext())
-                return;
-
-            SyncedMusicCommand cmd = this.syncedMusicCommands.remove(irritator.next());
-
-            if (cmd.remove)
-            {
-                if (this.syncedTracks.containsKey(cmd.path) && this.syncedTrackFadeRate.get(cmd.path) < 0)
-                {
-                    Music m = this.syncedTracks.remove(cmd.path);
-                    m.stop();
-                    this.stoppingSyncedTracks.remove(cmd.path);
-                    this.syncedTrackFadeRate.remove(cmd.path);
-                    this.syncedTrackMaxVolumes.remove(cmd.path);
-                    this.syncedTrackCurrentVolumes.remove(cmd.path);
-                    return;
-                }
-            }
-            else
-            {
-                Music s = this.stoppingSyncedTracks.remove(cmd.path);
-                if (s != null)
-                    s.stop();
-
-                if (currentMusic == null)
-                    return;
-
-                Music m = this.getMusic(cmd.path);
-                m.play();
-
-                m.setLooping(cmd.looped);
-                m.setVolume(0);
-                m.setPosition(currentMusic.getPosition() + latency);
-                this.syncedTracks.put(cmd.path, m);
-                this.syncedTrackCurrentVolumes.put(cmd.path, 0f);
-                this.syncedTrackMaxVolumes.put(cmd.path, cmd.volume);
-                this.syncedTrackFadeRate.put(cmd.path, cmd.volume / cmd.fadeTime * 10);
-                return;
-            }
+            syncedTracks.clear();
+            stoppingSyncedTracks.clear();
+            syncedTrackMaxVolumes.clear();
+            syncedTrackCurrentVolumes.clear();
+            syncedTrackFadeRate.clear();
         }
     }
 
     @Override
     public void stopMusic()
     {
-        if (this.currentMusic != null)
-            this.currentMusic.stop();
-
-        if (this.prevMusic != null)
-            this.prevMusic.stop();
-
-        this.currentMusic = null;
-        this.prevMusic = null;
-        this.musicID = null;
-
-        for (String s: this.syncedTracks.keySet())
+        synchronized (this.musicCommands)
         {
-            this.syncedTrackFadeRate.put(s, -1.0f);
-            this.syncedMusicCommands.put(s, SyncedMusicCommand.remove(s));
+            this.musicCommands.add(new StopMusicCommand());
+        }
+    }
+
+    public class AddSyncedMusicCommand extends MusicCommand
+    {
+        String path;
+        float volume;
+        boolean looped;
+        long fadeTime;
+
+        public AddSyncedMusicCommand(String path, float volume, boolean looped, long fadeTime)
+        {
+            this.path = path;
+            this.volume = volume;
+            this.looped = looped;
+            this.fadeTime = fadeTime;
+        }
+
+        @Override
+        public void execute()
+        {
+            Music s = stoppingSyncedTracks.remove(path);
+            if (s != null)
+                s.stop();
+
+            if (currentMusic == null)
+                return;
+
+            Music m = getMusic(path);
+            m.play();
+
+            m.setLooping(looped);
+            m.setVolume(0);
+            m.setPosition(currentMusic.getPosition() + latency);
+            syncedTracks.put(path, m);
+            syncedTrackCurrentVolumes.put(path, 0f);
+            syncedTrackMaxVolumes.put(path, volume);
+            syncedTrackFadeRate.put(path, volume / fadeTime * 10);
+        }
+    }
+
+
+    @Override
+    public void addSyncedMusic(String path, float volume, boolean looped, long fadeTime)
+    {
+        synchronized (this.musicCommands)
+        {
+            this.musicCommands.add(new AddSyncedMusicCommand(path, volume, looped, fadeTime));
+        }
+    }
+
+    public class RemoveSyncedMusicCommand extends MusicCommand
+    {
+        String path;
+        long fadeTime;
+
+        public RemoveSyncedMusicCommand(String path, long fadeTime)
+        {
+            this.path = path;
+            this.fadeTime = fadeTime;
+        }
+
+        @Override
+        public void execute()
+        {
+            if (syncedTracks.containsKey(path))
+            {
+                stoppingSyncedTracks.put(path, syncedTracks.get(path));
+                syncedTrackFadeRate.put(path, syncedTrackMaxVolumes.get(path) / fadeTime * 10);
+            }
+        }
+    }
+
+    @Override
+    public void removeSyncedMusic(String path, long fadeTime)
+    {
+        synchronized (this.musicCommands)
+        {
+            this.musicCommands.add(new RemoveSyncedMusicCommand(path, fadeTime));
         }
     }
 
@@ -369,6 +445,25 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
     @Override
     public void update()
     {
+
+    }
+
+    public void updateAsync() throws InterruptedException
+    {
+        tempMusicCommands.clear();
+        synchronized (musicCommands)
+        {
+            while (!musicCommands.isEmpty())
+            {
+                tempMusicCommands.add(musicCommands.remove());
+            }
+        }
+
+        for (MusicCommand m: tempMusicCommands)
+        {
+            m.execute();
+        }
+
         this.musicPlaying = this.currentMusic != null && this.currentMusic.isPlaying();
 
         if (this.prevMusic != null && this.fadeEnd < System.currentTimeMillis())
@@ -396,8 +491,6 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
             this.currentMusic.setVolume((float) (this.currentVolume * frac));
         }
 
-        this.updateSyncedMusic();
-
         for (String s: this.syncedTracks.keySet())
         {
             Music m = this.syncedTracks.get(s);
@@ -405,12 +498,19 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
 
             if (this.stoppingSyncedTracks.containsKey(s))
             {
-                vol = (float) (vol + window.frameFrequency * this.syncedTrackFadeRate.get(s));
+                vol = (float) (vol - window.frameFrequency * this.syncedTrackFadeRate.get(s));
                 m.setVolume(Math.max(0, vol));
                 this.syncedTrackCurrentVolumes.put(s, vol);
 
                 if (vol <= 0)
-                    this.syncedMusicCommands.put(s, SyncedMusicCommand.remove(s));
+                {
+                    m.stop();
+                    this.stoppingSyncedTracks.remove(s);
+                    this.syncedTrackFadeRate.remove(s);
+                    this.syncedTrackMaxVolumes.remove(s);
+                    this.syncedTrackCurrentVolumes.remove(s);
+                    removeTracks.add(s);
+                }
             }
             else
             {
@@ -422,6 +522,15 @@ public class LibGDXSoundPlayer extends BaseSoundPlayer
                 }
             }
         }
+
+        for (String r: removeTracks)
+        {
+            this.syncedTracks.remove(r);
+        }
+
+        this.removeTracks.clear();
+
+        Thread.sleep(10);
     }
 
     @Override

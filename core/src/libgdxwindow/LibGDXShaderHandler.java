@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.BufferUtils;
@@ -94,8 +95,9 @@ public class LibGDXShaderHandler
         this.frameBuffer.begin();
         //Gdx.gl.glViewport(0, 0, size, size);
 
-        Gdx.gl.glClearColor(1.0f, 0, 0, 1);
+        Gdx.gl.glClearColor(1, 1, 1, 1);
         Gdx.gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        this.window.clearDepthBG();
 
         //Gdx.gl.glClearDepthf(1.0f);
 
@@ -142,7 +144,7 @@ public class LibGDXShaderHandler
 
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
 
-        Gdx.gl.glClearColor(0.0f, 1, 0, 1);
+        Gdx.gl.glClearColor(0.6823f, 0.3608f, 0.0628f, 1);
         Gdx.gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         Gdx.gl.glActiveTexture(GL_TEXTURE1);

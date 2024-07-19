@@ -1,4 +1,4 @@
-#define DEPTH_OFFSET 0.001
+#define DEPTH_OFFSET 0.004
 #define LIGHT_SCALE 32.0
 
 //uniform vec3 lightVec;
@@ -141,7 +141,7 @@ void main(void)
 
         if (depthtest)
         {
-            bool lit = depthVal >= lightNDCPosition.z - DEPTH_OFFSET * 2048.0 / float(shadowres);
+            bool lit = depthVal >= lightNDCPosition.z - DEPTH_OFFSET - 0.0005 * 204.8 / float(shadowres);
 
             float col;
 
@@ -253,6 +253,13 @@ void main(void)
             //gl_FragColor.y = lightNDCPosition.z - DEPTH_OFFSET * 2048.0 / float(shadowres);
             //gl_FragColor.z = 0.0;
         }
+
+//        gl_FragColor.xyz = vec3(depthVal);
+//        float diff = depthVal - (lightNDCPosition.z - DEPTH_OFFSET * 2048.0 / float(shadowres));
+//        if (diff < 0.0)
+//            gl_FragColor.xyz = vec3(-diff, 0.0, 0.0) * 1.0;
+//        else
+//            gl_FragColor.xyz = vec3(0.0, diff, 0.0) * 1.0;
     }
     else
     {

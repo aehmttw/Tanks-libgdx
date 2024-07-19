@@ -185,9 +185,9 @@ public class Game
 	//public static boolean autoMinimapEnabled = true;
 	//public static float defaultZoom = 1.5f;
 
-    public static double[] color = new double[3];
+	public static double[] color = new double[3];
 
-    public static Screen screen;
+	public static Screen screen;
 	public static Screen prevScreen;
 
 	public static String ip = "";
@@ -273,6 +273,7 @@ public class Game
 
 	public static float soundVolume = 1f;
 	public static float musicVolume = 0.5f;
+	public static boolean enableLayeredMusic = true;
 
 	public static boolean isOnlineServer;
 	public static boolean connectedToOnline = false;
@@ -1171,54 +1172,54 @@ public class Game
 	}
 
 	public static double[] getRainbowColor(double fraction)
-    {
-        double col = fraction * 255 * 6;
+	{
+		double col = fraction * 255 * 6;
 
-        double r = 0;
-        double g = 0;
-        double b = 0;
+		double r = 0;
+		double g = 0;
+		double b = 0;
 
-        if (col <= 255)
-        {
-            r = 255;
-            g = col;
-            b = 0;
-        }
-        else if (col <= 255 * 2)
-        {
-            r = 255 * 2 - col;
-            g = 255;
-            b = 0;
-        }
-        else if (col <= 255 * 3)
-        {
-            g = 255;
-            b = col - 255 * 2;
-        }
-        else if (col <= 255 * 4)
-        {
-            g = 255 * 4 - col;
-            b = 255;
-        }
-        else if (col <= 255 * 5)
-        {
-            r = col - 255 * 4;
-            g = 0;
-            b = 255;
-        }
-        else if (col <= 255 * 6)
-        {
-            r = 255;
-            g = 0;
-            b = 255 * 6 - col;
-        }
+		if (col <= 255)
+		{
+			r = 255;
+			g = col;
+			b = 0;
+		}
+		else if (col <= 255 * 2)
+		{
+			r = 255 * 2 - col;
+			g = 255;
+			b = 0;
+		}
+		else if (col <= 255 * 3)
+		{
+			g = 255;
+			b = col - 255 * 2;
+		}
+		else if (col <= 255 * 4)
+		{
+			g = 255 * 4 - col;
+			b = 255;
+		}
+		else if (col <= 255 * 5)
+		{
+			r = col - 255 * 4;
+			g = 0;
+			b = 255;
+		}
+		else if (col <= 255 * 6)
+		{
+			r = 255;
+			g = 0;
+			b = 255 * 6 - col;
+		}
 
-        color[0] = r;
-        color[1] = g;
-        color[2] = b;
+		color[0] = r;
+		color[1] = g;
+		color[2] = b;
 
-        return color;
-    }
+		return color;
+	}
 
 	public static void exitToTitle()
 	{

@@ -398,13 +398,7 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
     @Override
     public void fillBox(double x, double y, double z, double sX, double sY, double sZ, String texture)
     {
-        fillBox(x, y, z, sX, sY, sZ, (byte) 0);
-    }
-
-    @Override
-    public void fillBox(double x, double y, double z, double sX, double sY, double sZ, byte options, String texture)
-    {
-        fillBox(x, y, z, sX, sY, sZ, options);
+        fillBox(x, y, z, sX, sY, sZ, (byte) 0, texture);
     }
 
     /**
@@ -421,7 +415,7 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
      *
      * +64 draw on top
      * */
-    public void fillBox(double posX, double posY, double posZ, double sX, double sY, double sZ, byte options)
+    public void fillBox(double posX, double posY, double posZ, double sX, double sY, double sZ, byte options, String texture)
     {
         float x = (float) posX;
         float y = (float) posY;
@@ -447,107 +441,149 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
         else
             this.window.setDrawMode(GL20.GL_TRIANGLES, false, depthMask, glow, 36);
 
+        if (texture != null)
+            this.window.setTexture(texture);
+
         if (options % 2 == 0)
         {
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(0, 0);
             this.window.renderer.vertex(x, y, z);
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(1, 0);
             this.window.renderer.vertex(x + width, y, z);
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x + width, y + height, z);
 
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(0, 0);
             this.window.renderer.vertex(x, y, z);
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x + width, y + height, z);
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(0, 1);
             this.window.renderer.vertex(x, y + height, z);
         }
 
         if ((options >> 2) % 2 == 0)
         {
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(0, 1);
             this.window.renderer.vertex(x, y + height, z);
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(1, 0);
             this.window.renderer.vertex(x + width, y + height, z);
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x + width, y + height, z + depth);
 
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(0, 0);
             this.window.renderer.vertex(x, y + height, z);
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x + width, y + height, z + depth);
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(0, 1);
             this.window.renderer.vertex(x, y + height, z + depth);
         }
 
         if ((options >> 3) % 2 == 0)
         {
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(0, 1);
             this.window.renderer.vertex(x, y, z + depth);
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x + width, y, z + depth);
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(1, 0);
             this.window.renderer.vertex(x + width, y, z);
 
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(0, 1);
             this.window.renderer.vertex(x, y, z + depth);
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(1, 0);
             this.window.renderer.vertex(x + width, y, z);
             this.window.renderer.color(color2);
+            this.window.renderer.texCoord(0, 0);
             this.window.renderer.vertex(x, y, z);
         }
 
         if ((options >> 4) % 2 == 0)
         {
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(0, 1);
             this.window.renderer.vertex(x, y, z + depth);
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(0, 0);
             this.window.renderer.vertex(x, y, z);
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(1, 0);
             this.window.renderer.vertex(x, y + height, z);
 
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(0, 1);
             this.window.renderer.vertex(x, y, z + depth);
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(1, 0);
             this.window.renderer.vertex(x, y + height, z);
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x, y + height, z + depth);
         }
 
         if ((options >> 5) % 2 == 0)
         {
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(0, 0);
             this.window.renderer.vertex(x + width, y, z);
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(0, 1);
             this.window.renderer.vertex(x + width, y, z + depth);
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x + width, y + height, z + depth);
 
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(0, 0);
             this.window.renderer.vertex(x + width, y, z);
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x + width, y + height, z + depth);
             this.window.renderer.color(color3);
+            this.window.renderer.texCoord(1, 0);
             this.window.renderer.vertex(x + width, y + height, z);
         }
 
         if ((options >> 1) % 2 == 0)
         {
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(1, 0);
             this.window.renderer.vertex(x + width, y, z + depth);
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(0, 0);
             this.window.renderer.vertex(x, y, z + depth);
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x + width, y + height, z + depth);
 
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(1, 1);
             this.window.renderer.vertex(x + width, y + height, z + depth);
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(0, 0);
             this.window.renderer.vertex(x, y, z + depth);
             this.window.renderer.color(this.window.color);
+            this.window.renderer.texCoord(0, 1);
             this.window.renderer.vertex(x, y + height, z + depth);
         }
+
+        if (texture != null)
+            this.window.stopTexture();
     }
 
     @Override
@@ -768,6 +804,9 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
     @Override
     public void drawImage(double x, double y, double z, double sX, double sY, double u1, double v1, double u2, double v2, String image, boolean scaled, boolean depthtest)
     {
+        if (this.window.drawingShadow)
+            return;
+
         this.window.beginLinkedImages(image, scaled, depthtest);
         this.window.drawLinkedImage(x, y, z, sX, sY, u1, v1, u2, v2);
         this.window.endLinkedImages();
@@ -800,6 +839,9 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
     @Override
     public void drawImage(double x, double y, double z, double sX, double sY, double u1, double v1, double u2, double v2, String image, double rotation, boolean scaled, boolean depthtest)
     {
+        if (this.window.drawingShadow)
+            return;
+
         this.window.beginLinkedImages(image, scaled, depthtest);
         this.window.drawLinkedImage(x, y, z, sX, sY, u1, v1, u2, v2, rotation - Math.PI / 2);
         this.window.endLinkedImages();

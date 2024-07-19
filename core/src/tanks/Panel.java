@@ -105,13 +105,9 @@ public class Panel
 
 	public void setUp()
 	{
-		System.out.println("Begin setup");
-
 		Game.game.shaderIntro = new ShaderGroundIntro(Game.game.window);
 		Game.game.shaderOutOfBounds = new ShaderGroundOutOfBounds(Game.game.window);
- 		Game.game.shaderTracks = new ShaderTracks(Game.game.window);
-
-		System.out.println("Create shaders");
+		Game.game.shaderTracks = new ShaderTracks(Game.game.window);
 
 		try
 		{
@@ -124,12 +120,8 @@ public class Panel
 			Game.exitToCrash(e);
 		}
 
-		System.out.println("Creating renderers...");
-
 		Drawing.drawing.terrainRenderer = new TerrainRenderer();
 		Drawing.drawing.trackRenderer = new TrackRenderer();
-
-		System.out.println("Renderers created!");
 
 		ModAPI.setUp();
 
@@ -164,9 +156,6 @@ public class Panel
 		TankPlayer.setShootStick(TankPlayer.shootStickEnabled);
 		TankPlayer.controlStick.mobile = TankPlayer.controlStickMobile;
 		TankPlayer.controlStick.snap = TankPlayer.controlStickSnap;
-
-		Hotbar.toggle.posX = Drawing.drawing.interfaceSizeX / 2;
-		Hotbar.toggle.posY = Drawing.drawing.interfaceSizeY - 20;
 
 		Game.createModels();
 
@@ -728,7 +717,7 @@ public class Panel
 				{
 					double v = 1;
 					if (Game.screen instanceof ScreenIntro)
-						v = Obstacle.draw_size;
+						v = Obstacle.draw_size / Game.tile_size;
 
 					if (v > 0.05)
 					{

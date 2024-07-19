@@ -16,7 +16,7 @@ public class ScreenTutorialGame extends ScreenGame
 		Game.playerTank.setBufferCooldown(50);
 	}
 	
-	public Button skip = new Button(this.centerX, this.centerY + 60, 350, 40, "Skip tutorial", () ->
+	public Button skip = new Button(this.centerX, this.centerY + this.objYSpace, this.objWidth, this.objHeight, "Skip tutorial", () ->
 	{
 		try
 		{

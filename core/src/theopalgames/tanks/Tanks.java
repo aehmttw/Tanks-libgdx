@@ -5,6 +5,8 @@ import basewindow.BaseVibrationPlayer;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+
+import libgdxwindow.LibGDXAsyncMiniAudioSoundPlayer;
 import libgdxwindow.LibGDXFileManager;
 import libgdxwindow.LibGDXWindow;
 import tanks.Game;
@@ -42,7 +44,6 @@ public class Tanks extends ApplicationAdapter
 	public void create()
 	{
 		instance = this;
-		Game.debug = true;
 
 		window.absoluteWidth = Gdx.graphics.getWidth();
 		window.absoluteHeight = Gdx.graphics.getHeight();
@@ -77,7 +78,14 @@ public class Tanks extends ApplicationAdapter
 	@Override
 	public void render()
 	{
-		window.render();
+		try
+		{
+			window.render();
+		}
+		catch (Exception e)
+		{
+			Game.exitToCrash(e);
+		}
 	}
 
 	@Override
@@ -89,6 +97,7 @@ public class Tanks extends ApplicationAdapter
 	@Override
 	public void pause()
 	{
+		LibGDXAsyncMiniAudioSoundPlayer.miniAudio.stopEngine();
 		if (Game.screen instanceof ScreenExit)
 		{
 			window.windowHandler.onWindowClose();
@@ -99,6 +108,7 @@ public class Tanks extends ApplicationAdapter
 	@Override
 	public void resume()
 	{
+		LibGDXAsyncMiniAudioSoundPlayer.miniAudio.startEngine();
 		window.lastFrame = System.currentTimeMillis();
 	}
 }
