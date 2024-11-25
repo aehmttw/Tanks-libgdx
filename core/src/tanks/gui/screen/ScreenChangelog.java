@@ -100,6 +100,9 @@ public class ScreenChangelog extends Screen
     {
         this.drawDefaultBackground();
 
+        Drawing.drawing.setColor(0, 0, 0, 127);
+        Drawing.drawing.drawPopup(centerX, centerY + 25,1100, 700, 10, 5);
+
         if (pageContents == null)
             pageContents = pages.get(currentPage).split("\n");
 
@@ -114,7 +117,7 @@ public class ScreenChangelog extends Screen
 
         quit.draw();
 
-        Drawing.drawing.setColor(0, 0, 0);
+        Drawing.drawing.setColor(255, 255, 255);
 
         if (pageContents != null)
         {
@@ -476,6 +479,20 @@ public class ScreenChangelog extends Screen
                     }
             );
 
+            new Changelog("v1.6.a", new String[]
+                    {
+                            "*What's new in Tanks v1.6.a:\n\n" +
+                                    "Added an enormous number of new bullet options\n" +
+                                    "Improved item editor\n" +
+                                    "Improved the tank editor for spawned and transformed tanks\n" +
+                                    "Level editor menu UI improvements\n" +
+                                    "Added beat blocks\n" +
+                                    "Made fireworks prettier and more performant\n" +
+                                    "Updated music\n" +
+                                    "Added third color for players\n" +
+                                    "Bug fixes and other minor improvements\n"
+                    }
+            );
         }
     }
 }

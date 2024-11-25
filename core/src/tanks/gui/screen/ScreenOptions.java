@@ -18,6 +18,8 @@ public class ScreenOptions extends Screen
 	public static final String onText = "\u00A7000200000255on";
 	public static final String offText = "\u00A7200000000255off";
 
+	public static boolean alwaysDebug = false;
+
 	TankPlayer preview = new TankPlayer(0, 0, 0);
 
 	public ScreenOptions()
@@ -136,8 +138,10 @@ public class ScreenOptions extends Screen
 
 		preview.drawForInterface(personalize.posX - personalize.sizeX / 2 + personalize.sizeY * 0.7, personalize.posY, objHeight / 40);
 
-		Drawing.drawing.setColor(Game.player.turretColorR, Game.player.turretColorG, Game.player.turretColorB);
+		Drawing.drawing.setColor(Game.player.colorR2, Game.player.colorG2, Game.player.colorB2);
 		Drawing.drawing.drawInterfaceText(personalize.posX + 2, personalize.posY + personalize.sizeY * 0.1 + 2, Game.player.username);
+		Drawing.drawing.setColor(Game.player.colorR3, Game.player.colorG3, Game.player.colorB3);
+		Drawing.drawing.drawInterfaceText(personalize.posX + 1, personalize.posY + personalize.sizeY * 0.1 + 1, Game.player.username);
 		Drawing.drawing.setColor(Game.player.colorR, Game.player.colorG, Game.player.colorB);
 		Drawing.drawing.drawInterfaceText(personalize.posX, personalize.posY + personalize.sizeY * 0.1, Game.player.username);
 
@@ -232,16 +236,21 @@ public class ScreenOptions extends Screen
 			f.println("disable_party_friendly_fire=" + Game.disablePartyFriendlyFire);
 			f.println("party_countdown=" + Game.partyStartTime);
 			f.println("tank_secondary_color=" + Game.player.enableSecondaryColor);
+			f.println("tank_tertiary_color=" + Game.player.enableTertiaryColor);
 			f.println("tank_red=" + Game.player.colorR);
 			f.println("tank_green=" + Game.player.colorG);
 			f.println("tank_blue=" + Game.player.colorB);
-			f.println("tank_red_2=" + Game.player.turretColorR);
-			f.println("tank_green_2=" + Game.player.turretColorG);
-			f.println("tank_blue_2=" + Game.player.turretColorB);
+			f.println("tank_red_2=" + Game.player.colorR2);
+			f.println("tank_green_2=" + Game.player.colorG2);
+			f.println("tank_blue_2=" + Game.player.colorB2);
+			f.println("tank_red_3=" + Game.player.colorR3);
+			f.println("tank_green_3=" + Game.player.colorG3);
+			f.println("tank_blue_3=" + Game.player.colorB3);
 			f.println("translation=" + (Translation.currentTranslation == null ? "null" : Translation.currentTranslation.fileName));
 			f.println("last_version=" + Game.lastVersion);
 			f.println("enable_extensions=" + Game.enableExtensions);
 			f.println("auto_load_extensions=" + Game.autoLoadExtensions);
+			f.println("debug_mode=" + alwaysDebug);
 			f.stopWriting();
 		}
 		catch (FileNotFoundException e)
@@ -324,7 +333,7 @@ public class ScreenOptions extends Screen
 					case "constrain_mouse":
 						Game.constrainMouse = Boolean.parseBoolean(optionLine[1]);
 						break;
-					case "enable_vibrations":
+					case "vibrations":
 						Game.enableVibrations = Boolean.parseBoolean(optionLine[1]);
 						break;
 					case "mobile_joystick":
@@ -448,6 +457,9 @@ public class ScreenOptions extends Screen
 					case "tank_secondary_color":
 						Game.player.enableSecondaryColor = Boolean.parseBoolean(optionLine[1]);
 						break;
+					case "tank_tertiary_color":
+						Game.player.enableTertiaryColor = Boolean.parseBoolean(optionLine[1]);
+						break;
 					case "tank_red":
 						Game.player.colorR = Integer.parseInt(optionLine[1]);
 						break;
@@ -458,13 +470,22 @@ public class ScreenOptions extends Screen
 						Game.player.colorB = Integer.parseInt(optionLine[1]);
 						break;
 					case "tank_red_2":
-						Game.player.turretColorR = Integer.parseInt(optionLine[1]);
+						Game.player.colorR2 = Integer.parseInt(optionLine[1]);
 						break;
 					case "tank_green_2":
-						Game.player.turretColorG = Integer.parseInt(optionLine[1]);
+						Game.player.colorG2 = Integer.parseInt(optionLine[1]);
 						break;
 					case "tank_blue_2":
-						Game.player.turretColorB = Integer.parseInt(optionLine[1]);
+						Game.player.colorB2 = Integer.parseInt(optionLine[1]);
+						break;
+					case "tank_red_3":
+						Game.player.colorR3 = Integer.parseInt(optionLine[1]);
+						break;
+					case "tank_green_3":
+						Game.player.colorG3 = Integer.parseInt(optionLine[1]);
+						break;
+					case "tank_blue_3":
+						Game.player.colorB3 = Integer.parseInt(optionLine[1]);
 						break;
 					case "translation":
 						Translation.setCurrentTranslation(optionLine[1]);
@@ -478,7 +499,10 @@ public class ScreenOptions extends Screen
 					case "auto_load_extensions":
 						Game.autoLoadExtensions = Boolean.parseBoolean(optionLine[1]);
 						break;
-
+					case "debug_mode":
+						Game.debug = Boolean.parseBoolean(optionLine[1]);
+						alwaysDebug = Game.debug;
+						break;
 				}
 			}
 			f.stopReading();
@@ -497,6 +521,13 @@ public class ScreenOptions extends Screen
 				TankPlayerRemote.anticheatMaxTimeOffset = TankPlayerRemote.anticheatStrongTimeOffset;
 			else
 				TankPlayerRemote.anticheatMaxTimeOffset = TankPlayerRemote.anticheatWeakTimeOffset;
+
+			if (!Game.player.enableTertiaryColor)
+			{
+				Game.player.colorR3 = (Game.player.colorR + Game.player.colorR2) / 2;
+				Game.player.colorG3 = (Game.player.colorG + Game.player.colorG2) / 2;
+				Game.player.colorB3 = (Game.player.colorB + Game.player.colorB2) / 2;
+			}
 		}
 		catch (Exception e)
 		{

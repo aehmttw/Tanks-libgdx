@@ -4,14 +4,19 @@ import tanks.Drawing;
 import tanks.Game;
 import tanks.IDrawableWithGlow;
 import tanks.Movable;
-import tanks.hotbar.item.ItemBullet;
+import tanks.item.ItemBullet;
 import tanks.network.event.EventTankControllerAddVelocity;
 import tanks.tank.Tank;
 import tanks.tank.TankPlayerRemote;
+import tanks.tankson.Property;
 
-public abstract class BulletGas extends Bullet implements IDrawableWithGlow
+public class BulletGas extends Bullet implements IDrawableWithGlow
 {
+    public static String bullet_class_name = "gas";
+
     public double startSize;
+
+    @Property(id = "end_size", name = "End size", category = BulletPropertyCategory.appearance)
     public double endSize;
 
     public double startR;
@@ -21,32 +26,43 @@ public abstract class BulletGas extends Bullet implements IDrawableWithGlow
     public double endG;
     public double endB;
 
+    @Property(id = "color_noise_r", name = "Noise red")
     public double noiseR;
+    @Property(id = "color_noise_g", name = "Noise green")
     public double noiseG;
+    @Property(id = "color_noise_b", name = "Noise blue")
     public double noiseB;
 
     public double baseDamage;
     public double baseBulletKB;
     public double baseTankKB;
 
+    @Property(id = "opacity", name = "Opacity", category = BulletPropertyCategory.appearance)
     public double opacity = 1;
 
-    public BulletGas(double x, double y, int bounces, Tank t, ItemBullet ib)
+    public BulletGas()
     {
-        this(x, y, bounces, t, false, ib);
+        this.init();
     }
 
-    public BulletGas(double x, double y, int bounces, Tank t, boolean affectsLiveBulletCount, ItemBullet ib)
+    public BulletGas(double x, double y, Tank t, boolean affectsLiveBulletCount, ItemBullet.ItemStackBullet ib)
     {
-        super(x, y, bounces, t, affectsLiveBulletCount, ib);
+        super(x, y, t, affectsLiveBulletCount, ib);
+        this.init();
+    }
+
+    protected void init()
+    {
+        this.typeName = bullet_class_name;
         this.useCustomWallCollision = true;
         this.playPopSound = false;
         this.playBounceSound = false;
-        this.effect = BulletEffect.none;
         this.externalBulletCollision = false;
         this.destroyBullets = false;
         this.canMultiDamage = true;
         this.canBeCanceled = false;
+        this.effect = BulletEffect.none;
+        this.homingSilent = true;
     }
 
     @Override
@@ -70,17 +86,17 @@ public abstract class BulletGas extends Bullet implements IDrawableWithGlow
                 this.drawLevel = 0;
         }
 
-        this.size = this.startSize * (1 - this.age / this.life) + this.endSize * (this.age / this.life);
+        this.size = this.startSize * (1 - this.age / this.lifespan) + this.endSize * (this.age / this.lifespan);
 
         double frac = 0;
-        if (this.life > 0)
+        if (this.lifespan > 0)
             frac = Math.pow(this.startSize, 2) / Math.pow(this.size, 2);
 
-        this.damage = this.baseDamage * frac;
+        this.damage = this.baseDamage * Math.max(0, 1.0 - this.age / this.lifespan);
         this.tankHitKnockback = this.baseTankKB * frac;
         this.bulletHitKnockback = this.baseBulletKB * frac;
 
-        if (this.age > life)
+        if (this.age > lifespan)
             Game.removeMovables.add(this);
 
         super.update();
@@ -89,13 +105,13 @@ public abstract class BulletGas extends Bullet implements IDrawableWithGlow
     @Override
     public void draw()
     {
-        double rawOpacity = (1.0 - (this.age) / life);
+        double rawOpacity = (1.0 - (this.age) / lifespan);
         rawOpacity *= rawOpacity * this.frameDamageMultipler;
         double opacity = Math.min(rawOpacity * 255 * this.opacity, 254) * (1 - this.destroyTimer / this.maxDestroyTimer);
 
         double frac = 0;
-        if (this.life > 0)
-            frac = Math.max(0, 1 - this.age / this.life);
+        if (this.lifespan > 0)
+            frac = Math.max(0, 1 - this.age / this.lifespan);
 
         Drawing.drawing.setColor(this.startR * frac + this.endR * (1 - frac), this.startG * frac + this.endG * (1 - frac), this.startB * frac + this.endB * (1 - frac), opacity, this.luminance);
 
@@ -108,13 +124,13 @@ public abstract class BulletGas extends Bullet implements IDrawableWithGlow
     @Override
     public void drawGlow()
     {
-        double rawOpacity = (1.0 - (this.age) / life);
+        double rawOpacity = (1.0 - (this.age) / lifespan);
         rawOpacity *= rawOpacity * this.frameDamageMultipler * this.glowIntensity;
         double opacity = Math.min(rawOpacity * 255 * this.opacity, 255) * (1 - this.destroyTimer / this.maxDestroyTimer);
 
         double frac = 0;
-        if (this.life > 0)
-            frac = Math.max(0, 1 - this.age / this.life);
+        if (this.lifespan > 0)
+            frac = Math.max(0, 1 - this.age / this.lifespan);
 
         Drawing.drawing.setColor(this.startR * frac + this.endR * (1 - frac), this.startG * frac + this.endG * (1 - frac), this.startB * frac + this.endB * (1 - frac), opacity, opacity / 255 * this.glowIntensity);
 

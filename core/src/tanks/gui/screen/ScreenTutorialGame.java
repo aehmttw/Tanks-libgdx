@@ -15,7 +15,7 @@ public class ScreenTutorialGame extends ScreenGame
 		Game.startTime = 0;
 		Game.playerTank.setBufferCooldown(50);
 	}
-	
+
 	public Button skip = new Button(this.centerX, this.centerY + this.objYSpace, this.objWidth, this.objHeight, "Skip tutorial", () ->
 	{
 		try
@@ -47,7 +47,7 @@ public class ScreenTutorialGame extends ScreenGame
 	}
 
 	@Override
-	public void update() 
+	public void update()
 	{
 		if (paused)
 			skip.update();
@@ -57,7 +57,7 @@ public class ScreenTutorialGame extends ScreenGame
 	}
 
 	@Override
-	public void draw() 
+	public void draw()
 	{
 		super.draw();
 

@@ -1,8 +1,5 @@
 package basewindow;
 
-import libgdxwindow.LibGDXWindow;
-import tanks.Game;
-
 import java.util.HashSet;
 
 /**

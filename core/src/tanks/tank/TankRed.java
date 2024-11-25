@@ -1,10 +1,10 @@
 package tanks.tank;
 
 import tanks.Game;
-import tanks.bullet.BulletLaser;
+import tanks.bullet.DefaultBullets;
 
 /**
- * A stationary tank which shoots {@link BulletLaser}s.
+ * A stationary tank which shoots lasers.
  */
 public class TankRed extends TankAIControlled
 {
@@ -15,17 +15,17 @@ public class TankRed extends TankAIControlled
 		this.enableMovement = false;
 		this.enableMineLaying = false;
 		this.enablePredictiveFiring = false;
-		this.bullet.maxLiveBullets = 1;
 		this.turretAimSpeed = 0.02;
 		this.enableLookingAtTargetEnemy = false;
-		this.bullet.bulletClass = BulletLaser.class;
+
 		this.cooldownBase = 100;
 		this.aimAccuracyOffset = 0;
-		this.bullet.name = "Laser";
+
 		this.cooldownSpeedup = 0.25;
-		this.bullet.bounces = 0;
 		this.chargeUp = true;
 		this.coinValue = 6;
+
+		this.setBullet(DefaultBullets.laser);
 
 		if (Game.tankTextures)
 		{

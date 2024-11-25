@@ -17,15 +17,11 @@ public class TankLightPink extends TankAIControlled
         this.turnChance = 0.001;
         this.coinValue = 10;
         this.enablePredictiveFiring = true;
-        this.bullet.cooldownBase = 1;
-        this.bullet.maxLiveBullets = 0;
         this.maxSpeed = 1.0;
         this.enablePathfinding = false;
         this.enableDefensiveFiring = true;
         this.cooldownBase = 120;
         this.cooldownRandom = 60;
-        this.bullet.bounces = 1;
-        this.bullet.effect = Bullet.BulletEffect.trail;
         this.shootAIType = ShootAI.reflect;
         this.avoidanceSeekOpenSpaces = true;
         this.bulletAvoidBehvavior = BulletAvoidBehavior.dodge;
@@ -38,7 +34,7 @@ public class TankLightPink extends TankAIControlled
             this.emblemB = this.secondaryColorB;
         }
 
-        this.sightTransformTank = new TankLightPinkAngry(this.name, x, y, angle);
+        this.sightTransformTankField = new TankLightPinkAngry(this.name, x, y, angle);
 
         this.description = "A tank which gets angry on line of sight";
     }

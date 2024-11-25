@@ -39,9 +39,10 @@ public class EventTankTransformPreset extends PersonalEvent
                 target = ((TankRemote) t).parentTransformations.remove(((TankRemote) t).parentTransformations.size() - 1);
             else
             {
-                target = ((TankAIControlled) ((TankRemote) t).tank).healthTransformTank;
                 if (sight)
-                    target = ((TankAIControlled) ((TankRemote) t).tank).sightTransformTank;
+                    target = (TankAIControlled) ((TankAIControlled) ((TankRemote) t).tank).sightTransformTankField.resolve();
+                else
+                    target = (TankAIControlled) ((TankAIControlled) ((TankRemote) t).tank).healthTransformTankField.resolve();
 
                 TankAIControlled p = new TankAIControlled(((TankRemote) t).tank.name, 0, 0, 0, 0, 0, 0, 0, TankAIControlled.ShootAI.none);
                 ((TankAIControlled) ((TankRemote) t).tank).cloneProperties(p);
@@ -70,7 +71,7 @@ public class EventTankTransformPreset extends PersonalEvent
             t.lightSize = target.lightSize;
 
             t.bullet.shotCount = target.bullet.shotCount;
-            t.bullet.shotSpread = target.bullet.shotSpread;
+            t.bullet.multishotSpread = target.bullet.multishotSpread;
 
             t.mandatoryKill = target.mandatoryKill;
             t.musicTracks = target.musicTracks;

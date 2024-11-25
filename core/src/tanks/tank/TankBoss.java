@@ -2,6 +2,7 @@ package tanks.tank;
 
 import tanks.Game;
 import tanks.bullet.Bullet;
+import tanks.bullet.DefaultBullets;
 
 /**
  * A big boss tank which spawns other tanks and takes 5 regular bullets to destroy
@@ -14,16 +15,12 @@ public class TankBoss extends TankAIControlled
 
 		this.enableMovement = false;
 		this.enableMineLaying = false;
-		this.bullet.maxLiveBullets = 4;
 		this.cooldownRandom = 200;
 		this.cooldownBase = 100;
 		this.aimAccuracyOffset = 0;
-		this.bullet.bounces = 3;
-		this.bullet.effect = Bullet.BulletEffect.trail;
-		this.bullet.speed = 25.0 / 8;
-		this.bullet.size = 25;
-		this.bullet.heavy = true;
-		this.bullet.name = "Mega bullet";
+
+		this.setBullet(DefaultBullets.mega_bullet);
+		this.bullet.maxLiveBullets = 4;
 
 		if (Game.tankTextures)
 		{
@@ -34,11 +31,11 @@ public class TankBoss extends TankAIControlled
 			this.emblemB = this.secondaryColorB;
 		}
 
-		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankBrown("brown", 0, 0, 0), 1));
-		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankGray("gray", 0, 0, 0), 1));
-		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankMint("mint", 0, 0, 0), 0.5));
-		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankYellow("yellow", 0, 0, 0), 0.5));
-		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankMagenta("magenta", 0, 0, 0), 0.3333));
+		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankReference("brown"), 1));
+		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankReference("gray"), 1));
+		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankReference("mint"), 0.5));
+		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankReference("yellow"), 0.5));
+		this.spawnedTankEntries.add(new SpawnedTankEntry(new TankReference("magenta"), 0.3333));
 
 		this.health = 5;
 		this.baseHealth = 5;

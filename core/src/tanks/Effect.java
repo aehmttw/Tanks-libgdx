@@ -6,6 +6,7 @@ import tanks.gui.screen.ScreenGame;
 import tanks.minigames.Arcade;
 import tanks.obstacle.Obstacle;
 import tanks.rendering.TrackRenderer;
+import tanks.tank.Mine;
 import tanks.tank.Turret;
 
 public class Effect extends Movable implements IDrawableWithGlow, IDrawableLightSource, IBatchRenderableObject
@@ -42,8 +43,6 @@ public class Effect extends Movable implements IDrawableWithGlow, IDrawableLight
 
     //Effects that have this set to true are removed faster when the level has ended
     public boolean fastRemoveOnExit = false;
-
-    public int drawLayer = 7;
 
     public State state = State.live;
 
@@ -85,6 +84,7 @@ public class Effect extends Movable implements IDrawableWithGlow, IDrawableLight
         this.posY = y;
         this.posZ = z;
         this.type = type;
+        this.drawLevel = 7;
 
         this.prevGridX = (int) (this.posX / Game.tile_size);
         this.prevGridY = (int) (this.posY / Game.tile_size);
@@ -103,6 +103,9 @@ public class Effect extends Movable implements IDrawableWithGlow, IDrawableLight
         else if (type == EffectType.explosion)
         {
             this.maxAge = 20;
+            this.colR = 255;
+            this.colG = 0;
+            this.colB = 0;
             this.force = true;
         }
         else if (type == EffectType.laser)
@@ -166,7 +169,7 @@ public class Effect extends Movable implements IDrawableWithGlow, IDrawableLight
             this.maxAge = 50;
         else if (type == EffectType.chain || type == EffectType.tutorialProgress)
         {
-            this.drawLayer = 9;
+            this.drawLevel = 9;
             this.maxAge = 100;
             this.size = Game.tile_size * 2;
         }
@@ -198,7 +201,7 @@ public class Effect extends Movable implements IDrawableWithGlow, IDrawableLight
         this.distance = 0;
         this.radius = 0;
         this.enableGlow = true;
-        this.drawLayer = 7;
+        this.drawLevel = 7;
         this.state = State.live;
         this.force = false;
         this.fastRemoveOnExit = false;
@@ -286,9 +289,8 @@ public class Effect extends Movable implements IDrawableWithGlow, IDrawableLight
         {
             double size = (radius * 2);
             double opacity = (100 - this.age * 5);
-            drawing.setColor(255, 0, 0, opacity, 1);
-            drawing.fillForcedOval(this.posX, this.posY, size, size);
-            drawing.setColor(255, 255, 255);
+            drawing.setColor(this.colR, this.colG, this.colB, opacity, 1);
+            Mine.drawRange2D(this.posX, this.posY, size / 2);
         }
         else if (this.type == EffectType.laser)
         {
@@ -371,9 +373,9 @@ public class Effect extends Movable implements IDrawableWithGlow, IDrawableLight
         }
         else if (this.type == EffectType.stun)
         {
-            double size = 1 + (this.size * Math.min(Math.min(1, (this.maxAge - this.age) * 3 / this.maxAge), Math.min(1, this.age * 3 / this.maxAge)));
+            double size = 1 + (this.size * Math.min(Math.min(1, (this.maxAge - this.age) / 30), Math.min(1, this.age / 30)));
             double angle = this.angle + this.age / 20;
-            double distance = 1 + (this.distance * Math.min(Math.min(1, (this.maxAge - this.age) * 3 / this.maxAge), Math.min(1, this.age * 3 / this.maxAge)));
+            double distance = 1 + (this.distance * Math.min(Math.min(1, (this.maxAge - this.age) / 30), Math.min(1, this.age / 30)));
 
             drawing.setColor(this.colR, this.colG, this.colB, 255, 0.5);
             double[] o = Movable.getLocationInDirection(angle, distance);
@@ -612,7 +614,7 @@ public class Effect extends Movable implements IDrawableWithGlow, IDrawableLight
         }
         else
         {
-            Game.exitToCrash(new RuntimeException("Invalid effect type!"));
+            Game.exitToCrash(new RuntimeException("Invalid effect type: " + this.type));
         }
     }
 
@@ -676,9 +678,9 @@ public class Effect extends Movable implements IDrawableWithGlow, IDrawableLight
         }
         else if (this.type == EffectType.stun)
         {
-            double size = 1 + (this.size * Math.min(Math.min(1, (this.maxAge - this.age) * 3 / this.maxAge), Math.min(1, this.age * 3 / this.maxAge)));
+            double size = 1 + (this.size * Math.min(Math.min(1, (this.maxAge - this.age) / 30), Math.min(1, this.age / 30)));
             double angle = this.angle + this.age / 20;
-            double distance = 1 + (this.distance * Math.min(Math.min(1, (this.maxAge - this.age) * 3 / this.maxAge), Math.min(1, this.age * 3 / this.maxAge)));
+            double distance = 1 + (this.distance * Math.min(Math.min(1, (this.maxAge - this.age) / 30), Math.min(1, this.age / 30)));
 
             double[] o = Movable.getLocationInDirection(angle, distance);
 

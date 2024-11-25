@@ -4,9 +4,9 @@ import basewindow.BaseFile;
 import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.hotbar.ItemBar;
-import tanks.hotbar.item.Item;
-import tanks.hotbar.item.ItemBullet;
-import tanks.hotbar.item.ItemMine;
+import tanks.item.Item;
+import tanks.item.ItemBullet;
+import tanks.item.ItemMine;
 import tanks.network.event.*;
 import tanks.tank.Tank;
 import tanks.tank.TankAIControlled;
@@ -55,7 +55,7 @@ public class Crusade
 	public boolean showNames = false;
 
 	public ArrayList<TankAIControlled> customTanks = new ArrayList<>();
-	public ArrayList<Item> crusadeItems = new ArrayList<>();
+	public ArrayList<Item.CrusadeShopItem> crusadeShopItems = new ArrayList<>();
 
 	public String name = "";
 	public String fileName = "";
@@ -169,7 +169,7 @@ public class Crusade
 					}
 					else if (parsing == 1)
 					{
-						this.crusadeItems.add(Item.parseItem(null, s));
+						this.crusadeShopItems.add(Item.CrusadeShopItem.fromString(s));
 					}
 					else if (parsing == 2)
 					{
@@ -277,7 +277,7 @@ public class Crusade
 						cp.itemBar.player = player;
 						crusadePlayers.put(player, cp);
 
-						for (Item i: cp.itemBar.slots)
+						for (Item.ItemStack<?> i: cp.itemBar.slots)
 						{
 							i.player = player;
 						}
@@ -326,14 +326,14 @@ public class Crusade
 
 			if (player.hotbar.enabledItemBar)
 			{
-				for (Item item: player.hotbar.itemBar.slots)
+				for (Item.ItemStack<?> item: player.hotbar.itemBar.slots)
 				{
 					item.cooldown = 0;
 
-					if (item instanceof ItemBullet)
-						((ItemBullet) item).liveBullets = 0;
-					else if (item instanceof ItemMine)
-						((ItemMine) item).liveMines = 0;
+					if (item instanceof ItemBullet.ItemStackBullet)
+						((ItemBullet.ItemStackBullet) item).liveBullets = 0;
+					else if (item instanceof ItemMine.ItemStackMine)
+						((ItemMine.ItemStackMine) item).liveMines = 0;
 				}
 			}
 		}
@@ -441,13 +441,13 @@ public class Crusade
 		return true;
 	}
 
-	public ArrayList<Item> getShop() 
+	public ArrayList<Item.ShopItem> getShop()
 	{
-		ArrayList<Item> shop = new ArrayList<>();
+		ArrayList<Item.ShopItem> shop = new ArrayList<>();
 		
-		for (int i = 0; i < this.crusadeItems.size(); i++)
+		for (int i = 0; i < this.crusadeShopItems.size(); i++)
 		{
-			Item item = this.crusadeItems.get(i);
+			Item.CrusadeShopItem item = this.crusadeShopItems.get(i);
 			if (item.levelUnlock <= this.currentLevel)
 				shop.add(item);
 		}

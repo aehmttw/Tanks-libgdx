@@ -7,21 +7,19 @@ import tanks.bullet.Bullet;
 import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.gui.screen.ScreenPartyLobby;
-import tanks.hotbar.item.ItemBullet;
-import tanks.hotbar.item.ItemMine;
+import tanks.item.ItemBullet;
+import tanks.item.ItemMine;
 import tanks.network.event.EventTankAddAttributeModifier;
 import tanks.network.event.EventTankUpdate;
 import tanks.network.event.EventTankUpdateHealth;
 import tanks.obstacle.Face;
 import tanks.obstacle.ISolidObject;
 import tanks.obstacle.Obstacle;
+import tanks.tankson.Property;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
+import static tanks.tank.TankPropertyCategory.*;
 
-import static tanks.tank.TankProperty.Category.*;
+import java.util.*;
 
 public abstract class Tank extends Movable implements ISolidObject
 {
@@ -33,13 +31,13 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public boolean fromRegistry = false;
 
-	@TankProperty(category = appearanceBody, id = "color_model", name = "Tank body model", miscType = TankProperty.MiscType.colorModel)
+	@Property(category = appearanceBody, id = "color_model", name = "Tank body model", miscType = Property.MiscType.colorModel)
 	public Model colorModel = TankModels.tank.color;
-	@TankProperty(category = appearanceTreads, id = "base_model", name = "Tank treads model", miscType = TankProperty.MiscType.baseModel)
+	@Property(category = appearanceTreads, id = "base_model", name = "Tank treads model", miscType = Property.MiscType.baseModel)
 	public Model baseModel = TankModels.tank.base;
-	@TankProperty(category = appearanceTurretBase, id = "turret_base_model", name = "Turret base model", miscType = TankProperty.MiscType.turretBaseModel)
+	@Property(category = appearanceTurretBase, id = "turret_base_model", name = "Turret base model", miscType = Property.MiscType.turretBaseModel)
 	public Model turretBaseModel = TankModels.tank.turretBase;
-	@TankProperty(category = appearanceTurretBarrel, id = "turret_model", name = "Turret barrel model", miscType = TankProperty.MiscType.turretModel)
+	@Property(category = appearanceTurretBarrel, id = "turret_model", name = "Turret barrel model", miscType = Property.MiscType.turretModel)
 	public Model turretModel = TankModels.tank.turret;
 
 	public double angle = 0;
@@ -60,140 +58,147 @@ public abstract class Tank extends Movable implements ISolidObject
 	public boolean tookRecoil = false;
 	public double recoilSpeed = 0;
 
+	public HashSet<ClippedTile> clippedTiles = new HashSet<>();
+	public HashSet<ClippedTile> stillClippedTiles = new HashSet<>();
+
 	/** If spawned by another tank, set to the tank that spawned this tank*/
 	protected Tank parent = null;
 
-	@TankProperty(category = general, id = "name", name = "Tank name")
+	@Property(category = general, id = "name", name = "Tank name", miscType = Property.MiscType.name)
 	public String name;
 
-	@TankProperty(category = general, id = "coin_value", name = "Coin value")
+	@Property(category = general, id = "coin_value", name = "Coin value")
 	public int coinValue = 0;
 
-	@TankProperty(category = general, id = "base_health", name = "Hitpoints", desc = "The default bullet does one hitpoint of damage")
+	@Property(category = general, minValue = 0.0, id = "base_health", name = "Hitpoints", desc = "The default bullet does one hitpoint of damage")
 	public double baseHealth = 1;
 	public double health = 1;
 
-	@TankProperty(category = general, id = "resist_bullets", name = "Bullet immunity")
+	@Property(category = general, id = "resist_bullets", name = "Bullet immunity")
 	public boolean resistBullets = false;
-	@TankProperty(category = general, id = "resist_explosions", name = "Explosion immunity")
+	@Property(category = general, id = "resist_explosions", name = "Explosion immunity")
 	public boolean resistExplosions = false;
-	@TankProperty(category = general, id = "resist_freezing", name = "Freezing immunity")
+	@Property(category = general, id = "resist_freezing", name = "Freezing immunity")
 	public boolean resistFreeze = false;
 
 	public int networkID = -1;
 	public int crusadeID = -1;
 
-	@TankProperty(category = general, id = "description", name = "Tank description", miscType = TankProperty.MiscType.description)
+	@Property(category = general, id = "description", name = "Tank description", miscType = Property.MiscType.description)
 	public String description = "";
 
-	@TankProperty(category = movementGeneral, id = "max_speed", name = "Top speed")
+	@Property(category = movementGeneral, id = "max_speed", name = "Top speed", minValue = 0.0)
 	public double maxSpeed = 1.5;
 
-	@TankProperty(category = movementGeneral, id = "acceleration", name = "Acceleration")
+	@Property(category = movementGeneral, id = "acceleration", name = "Acceleration", minValue = 0.0)
 	public double acceleration = 0.05;
 
-	@TankProperty(category = movementGeneral, id = "friction", name = "Friction")
+	@Property(category = movementGeneral, id = "friction", name = "Friction", minValue = 0.0, maxValue = 1.0)
 	public double friction = 0.05;
 
 	public double accelerationModifier = 1;
 	public double frictionModifier = 1;
 	public double maxSpeedModifier = 1;
 
-	@TankProperty(category = appearanceGeneral, id = "size", name = "Tank size")
+	@Property(category = appearanceGeneral, id = "size", name = "Tank size", minValue = 0.0, desc = "1 tile = 50 units")
 	public double size;
 
-	@TankProperty(category = appearanceBody, id = "color_r", name = "Red", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceBody, id = "color_r", name = "Red", miscType = Property.MiscType.color)
 	public double colorR;
-	@TankProperty(category = appearanceBody, id = "color_g", name = "Green", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceBody, id = "color_g", name = "Green", miscType = Property.MiscType.color)
 	public double colorG;
-	@TankProperty(category = appearanceBody, id = "color_b", name = "Blue", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceBody, id = "color_b", name = "Blue", miscType = Property.MiscType.color)
 	public double colorB;
 
-	@TankProperty(category = appearanceGlow, id = "glow_intensity", name = "Aura intensity")
+	@Property(category = appearanceGlow, id = "glow_intensity", name = "Aura intensity", minValue = 0.0)
 	public double glowIntensity = 1;
-	@TankProperty(category = appearanceGlow, id = "glow_size", name = "Aura size")
+	@Property(category = appearanceGlow, id = "glow_size", name = "Aura size", minValue = 0.0)
 	public double glowSize = 4;
-	@TankProperty(category = appearanceGlow, id = "light_intensity", name = "Light intensity")
+	@Property(category = appearanceGlow, id = "light_intensity", name = "Light intensity", minValue = 0.0)
 	public double lightIntensity = 1;
-	@TankProperty(category = appearanceGlow, id = "light_size", name = "Light size")
+	@Property(category = appearanceGlow, id = "light_size", name = "Light size", minValue = 0.0)
 	public double lightSize = 0;
-	@TankProperty(category = appearanceGlow, id = "luminance", name = "Tank luminance", desc = "How bright the tank will be in dark lighting. At 0, the tank will be shaded like terrain by lighting. At 1, the tank will always be fully bright.")
+	@Property(category = appearanceGlow, id = "luminance", name = "Tank luminance", minValue = 0.0, maxValue = 1.0, desc = "How bright the tank will be in dark lighting. At 0, the tank will be shaded like terrain by lighting. At 1, the tank will always be fully bright.")
 	public double luminance = 0.5;
 
 	/** Important: this option only is useful for the tank editor. Secondary color will be treated independently even if disabled. */
-	@TankProperty(category = appearanceTurretBarrel, id = "enable_color2", name = "Custom color", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceTurretBarrel, id = "enable_color2", name = "Custom color", miscType = Property.MiscType.color)
 	public boolean enableSecondaryColor = false;
-	@TankProperty(category = appearanceTurretBarrel, id = "color_r2", name = "Red", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceTurretBarrel, id = "color_r2", name = "Red", miscType = Property.MiscType.color)
 	public double secondaryColorR;
-	@TankProperty(category = appearanceTurretBarrel, id = "color_g2", name = "Green", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceTurretBarrel, id = "color_g2", name = "Green", miscType = Property.MiscType.color)
 	public double secondaryColorG;
-	@TankProperty(category = appearanceTurretBarrel, id = "color_b2", name = "Blue", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceTurretBarrel, id = "color_b2", name = "Blue", miscType = Property.MiscType.color)
 	public double secondaryColorB;
-	@TankProperty(category = appearanceTurretBarrel, id = "turret_size", name = "Turret thickness")
+	@Property(category = appearanceTurretBarrel, id = "turret_size", name = "Turret thickness", minValue = 0.0)
 	public double turretSize = 8;
-	@TankProperty(category = appearanceTurretBarrel, id = "turret_length", name = "Turret length")
+	@Property(category = appearanceTurretBarrel, id = "turret_length", name = "Turret length", minValue = 0.0)
 	public double turretLength = Game.tile_size;
-	@TankProperty(category = appearanceTurretBarrel, id = "multiple_turrets", name = "Multiple turrets", desc = "If enabled, the turret will reflect the bullet count")
+	@Property(category = appearanceTurretBarrel, id = "multiple_turrets", name = "Multiple turrets", desc = "If enabled, the turret will reflect the bullet multishot count")
 	public boolean multipleTurrets = true;
 
 	/** Important: tertiary color values will not be used unless this option is set to true! */
-	@TankProperty(category = appearanceTurretBase, id = "enable_color3", name = "Custom color", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceTurretBase, id = "enable_color3", name = "Custom color", miscType = Property.MiscType.color)
 	public boolean enableTertiaryColor = false;
-	@TankProperty(category = appearanceTurretBase, id = "color_r3", name = "Red", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceTurretBase, id = "color_r3", name = "Red", miscType = Property.MiscType.color)
 	public double tertiaryColorR;
-	@TankProperty(category = appearanceTurretBase, id = "color_g3", name = "Green", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceTurretBase, id = "color_g3", name = "Green", miscType = Property.MiscType.color)
 	public double tertiaryColorG;
-	@TankProperty(category = appearanceTurretBase, id = "color_b3", name = "Blue", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceTurretBase, id = "color_b3", name = "Blue", miscType = Property.MiscType.color)
 	public double tertiaryColorB;
 
-	@TankProperty(category = appearanceTracks, id = "enable_tracks", name = "Lays tracks")
+	@Property(category = appearanceTracks, id = "enable_tracks", name = "Lays tracks")
 	public boolean enableTracks = true;
-	@TankProperty(category = appearanceTracks, id = "track_spacing", name = "Track spacing")
+	@Property(category = appearanceTracks, id = "track_spacing", name = "Track spacing", minValue = 0.0)
 	public double trackSpacing = 0.4;
 
-	//public int liveBulletMax;
-	//public int liveMinesMax;
+	/** The bullet a tank uses. If you want to change this, make sure to use setBullet() because it also updates the bulletItem. */
+	@Property(category = firingGeneral, id = "bullet", name = "Bullet")
+	public Bullet bullet = TankPlayer.default_bullet.clonePropertiesTo(new Bullet());
+	public ItemBullet.ItemStackBullet bulletItem = new ItemBullet.ItemStackBullet(null, new ItemBullet(this.bullet), -1);
 
-	@TankProperty(category = firingGeneral, id = "bullet", name = "Bullet")
-	public ItemBullet bullet = (ItemBullet) TankPlayer.default_bullet.clone();
-
-	@TankProperty(category = mines, id = "mine", name = "Mine")
-	public ItemMine mine = (ItemMine) TankPlayer.default_mine.clone();
+	/** The mine a tank uses. If you want to change this, make sure to use setMine() because it also updates the mineItem. */
+	@Property(category = mines, id = "mine", name = "Mine")
+	public Mine mine = TankPlayer.default_mine.clonePropertiesTo(new Mine());
+	public ItemMine.ItemStackMine mineItem = new ItemMine.ItemStackMine(null, new ItemMine(this.mine), -1);
 
 	/** Age in frames*/
 	protected double age = 0;
+	/** A tank will spawn other tanks on the second frame it updates if it was spawned by another tank, to prevent infinite loop for recursively spawning tanks*/
+	protected boolean readyForInitialSpawn = true;
 
 	public double drawAge = 0;
 	public double destroyTimer = 0;
 	public boolean hasCollided = false;
-	public double flashAnimation = 0;
+	public double damageFlashAnimation = 0;
+	public double healFlashAnimation = 0;
 	public double treadAnimation = 0;
 	public boolean drawTread = false;
 
-	@TankProperty(category = appearanceEmblem, id = "emblem", name = "Tank emblem", miscType = TankProperty.MiscType.emblem)
+	@Property(category = appearanceEmblem, id = "emblem", name = "Tank emblem", miscType = Property.MiscType.emblem)
 	public String emblem = null;
-	@TankProperty(category = appearanceEmblem, id = "emblem_r", name = "Red", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceEmblem, id = "emblem_r", name = "Red", miscType = Property.MiscType.color)
 	public double emblemR;
-	@TankProperty(category = appearanceEmblem, id = "emblem_g", name = "Green", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceEmblem, id = "emblem_g", name = "Green", miscType = Property.MiscType.color)
 	public double emblemG;
-	@TankProperty(category = appearanceEmblem, id = "emblem_b", name = "Blue", miscType = TankProperty.MiscType.color)
+	@Property(category = appearanceEmblem, id = "emblem_b", name = "Blue", miscType = Property.MiscType.color)
 	public double emblemB;
 
 	public double orientation = 0;
 
 	public double hitboxSize = 0.95;
 
-	@TankProperty(category = general, id = "explode_on_destroy", name = "Explosive", desc="If set, the tank will explode when destroyed. The explosion will use the properties of the tank's mine.")
+	@Property(category = general, id = "explode_on_destroy", name = "Explosive", desc="If set, the tank will explode when destroyed. The explosion will use the properties of the tank's mine.")
 	public boolean explodeOnDestroy = false;
 
 	public boolean droppedFromCrate = false;
 
 	/** Whether this tank needs to be destroyed before the level ends. */
-	@TankProperty(category = general, id = "mandatory_kill", name = "Must be destroyed", desc="Whether the tank needs to be destroyed to clear the level")
+	@Property(category = general, id = "mandatory_kill", name = "Must be destroyed", desc="Whether the tank needs to be destroyed to clear the level")
 	public boolean mandatoryKill = true;
 
 	/** Used for custom tanks, see /music/tank for built-in tanks */
-	@TankProperty(category = general, id = "music", name = "Music tracks", miscType = TankProperty.MiscType.music)
+	@Property(category = general, id = "music", name = "Music tracks", miscType = Property.MiscType.music)
 	public HashSet<String> musicTracks = new HashSet<>();
 
 	public boolean[][] hiddenPoints = new boolean[3][3];
@@ -231,9 +236,6 @@ public abstract class Tank extends Movable implements ISolidObject
 		this.nameTag = new NameTag(this, 0, this.size / 7 * 5, this.size / 2, this.name);
 
 		this.drawLevel = 4;
-
-		this.bullet.unlimitedStack = true;
-		this.mine.unlimitedStack = true;
 	}
 
 	public void unregisterNetworkID()
@@ -271,6 +273,26 @@ public abstract class Tank extends Movable implements ISolidObject
 	{
 		this.networkID = id;
 		idMap.put(id, this);
+	}
+
+	/**
+	 * Always use this to change a tank's bullet
+	 * @param b the bullet to set the tank to use
+	 */
+	public void setBullet(Bullet b)
+	{
+		this.bullet = b.getCopy();
+		this.bulletItem.item.bullet = this.bullet;
+	}
+
+	/**
+	 * Always use this to change a tank's mine
+	 * @param m the mine to set the tank to use
+	 */
+	public void setMine(Mine m)
+	{
+		this.mine = m.getCopy();
+		this.mineItem.item.mine = this.mine;
 	}
 
 	public void fireBullet(Bullet b, double speed, double offset)
@@ -368,6 +390,10 @@ public abstract class Tank extends Movable implements ISolidObject
 			hasCollided = true;
 		}
 
+		this.clippedTiles.clear();
+		this.clippedTiles.addAll(this.stillClippedTiles);
+		this.stillClippedTiles.clear();
+
 		for (int i = 0; i < Game.obstacles.size(); i++)
 		{
 			Obstacle o = Game.obstacles.get(i);
@@ -392,7 +418,17 @@ public abstract class Tank extends Movable implements ISolidObject
 				if (!o.tankCollision)
 					continue;
 
-				if (!o.hasLeftNeighbor() && dx <= 0 && dx >= -bound && horizontalDist >= verticalDist)
+				if (this.stillClips(o.posX, o.posY))
+					continue;
+				if (o.shouldClip)
+				{
+					ClippedTile c = new ClippedTile((int) (o.posX / Game.tile_size), (int) (o.posY / Game.tile_size));
+					this.stillClippedTiles.add(c);
+					this.clippedTiles.add(c);
+					continue;
+				}
+
+				if ((!o.hasLeftNeighbor() || this.clips(o.posX - Game.tile_size, o.posY)) && dx <= 0 && dx >= -bound && horizontalDist >= verticalDist)
 				{
 					hasCollided = true;
 					if (bouncy)
@@ -401,7 +437,7 @@ public abstract class Tank extends Movable implements ISolidObject
 						this.vX = 0;
 					this.posX += horizontalDist - bound;
 				}
-				else if (!o.hasUpperNeighbor() && dy <= 0 && dy >= -bound && horizontalDist <= verticalDist)
+				else if ((!o.hasUpperNeighbor() || this.clips(o.posX, o.posY - Game.tile_size)) && dy <= 0 && dy >= -bound && horizontalDist <= verticalDist)
 				{
 					hasCollided = true;
 					if (bouncy)
@@ -410,7 +446,7 @@ public abstract class Tank extends Movable implements ISolidObject
 						this.vY = 0;
 					this.posY += verticalDist - bound;
 				}
-				else if (!o.hasRightNeighbor() && dx >= 0 && dx <= bound && horizontalDist >= verticalDist)
+				else if ((!o.hasRightNeighbor() || this.clips(o.posX + Game.tile_size, o.posY))&& dx >= 0 && dx <= bound && horizontalDist >= verticalDist)
 				{
 					hasCollided = true;
 					if (bouncy)
@@ -419,7 +455,7 @@ public abstract class Tank extends Movable implements ISolidObject
 						this.vX = 0;
 					this.posX -= horizontalDist - bound;
 				}
-				else if (!o.hasLowerNeighbor() && dy >= 0 && dy <= bound && horizontalDist <= verticalDist)
+				else if ((!o.hasLowerNeighbor() || this.clips(o.posX, o.posY + Game.tile_size)) && dy >= 0 && dy <= bound && horizontalDist <= verticalDist)
 				{
 					hasCollided = true;
 					if (bouncy)
@@ -443,6 +479,9 @@ public abstract class Tank extends Movable implements ISolidObject
 			Game.exitToCrash(new RuntimeException("Network ID not assigned to tank!"));
 		}
 
+		this.bulletItem.item.bullet = this.bullet;
+		this.mineItem.item.mine = this.mine;
+
 		this.age += Panel.frameFrequency;
 		this.invulnerabilityTimer = Math.max(0, this.invulnerabilityTimer - Panel.frameFrequency);
 
@@ -461,7 +500,8 @@ public abstract class Tank extends Movable implements ISolidObject
 			this.attributeImmunities.addAll(Arrays.asList("ice_slip", "ice_accel", "ice_max_speed", "freeze"));
 		}
 
-		this.flashAnimation = Math.max(0, this.flashAnimation - 0.05 * Panel.frameFrequency);
+		this.damageFlashAnimation = Math.max(0, this.damageFlashAnimation - 0.05 * Panel.frameFrequency);
+		this.healFlashAnimation = Math.max(0, this.healFlashAnimation - 0.05 * Panel.frameFrequency);
 
 		if (destroy)
 		{
@@ -754,9 +794,10 @@ public abstract class Tank extends Movable implements ISolidObject
 		}
 
 
-		double flash = Math.min(1, this.flashAnimation);
+		double dmgFlash = Math.min(1, this.damageFlashAnimation);
+		double healFlash = Math.min(1, this.healFlashAnimation);
 
-		Drawing.drawing.setColor(this.colorR * (1 - flash) + 255 * flash, this.colorG * (1 - flash), this.colorB * (1 - flash), 255, luminance);
+		Drawing.drawing.setColor(this.colorR * (1 - Math.max(dmgFlash, healFlash)) + 255 * dmgFlash, this.colorG * (1 - Math.max(dmgFlash, healFlash)) + 255 * healFlash, this.colorB * (1 - Math.max(dmgFlash, healFlash)), 255, luminance);
 
 		if (forInterface)
 		{
@@ -913,7 +954,8 @@ public abstract class Tank extends Movable implements ISolidObject
 	{
 		if (this.explodeOnDestroy && !(this.droppedFromCrate && this.age < 250))
 		{
-			Explosion e = new Explosion(this.posX, this.posY, this.mine.radius, this.mine.damage, this.mine.destroysObstacles, this);
+			Explosion e = new Explosion(this.posX, this.posY, this, this.mineItem);
+			this.mine.explosion.clonePropertiesTo(e);
 			e.explode();
 		}
 	}
@@ -989,7 +1031,9 @@ public abstract class Tank extends Movable implements ISolidObject
 		if (this.health > 0)
 		{
 			if (finalAmount > 0)
-				this.flashAnimation = 1;
+				this.damageFlashAnimation = 1;
+			else if (finalAmount < 0)
+				this.healFlashAnimation = 1;
 		}
 		else
 			this.destroy = true;
@@ -1024,7 +1068,12 @@ public abstract class Tank extends Movable implements ISolidObject
 				}
 
 				if (cp != null && (source instanceof Bullet || source instanceof Explosion))
-					cp.addItemHit(source);
+				{
+					if (source instanceof Bullet)
+						cp.addItemHit(((Bullet) source).item);
+					else
+						cp.addItemHit(((Explosion) source).item);
+				}
 			}
 
 			if (owner != null && this instanceof IServerPlayerTank && this.health <= 0)
@@ -1052,7 +1101,7 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public void setEffectHeight(Effect e)
 	{
-		if (Game.enable3d && Game.enable3dBg && Game.glowEnabled)
+		if (Game.enable3d && Game.enable3dBg)
 		{
 			e.posZ = Math.max(e.posZ, Game.sampleTerrainGroundHeight(e.posX - e.size / 2, e.posY - e.size / 2));
 			e.posZ = Math.max(e.posZ, Game.sampleTerrainGroundHeight(e.posX + e.size / 2, e.posY - e.size / 2));
@@ -1084,6 +1133,10 @@ public abstract class Tank extends Movable implements ISolidObject
 		double nearest = Double.MAX_VALUE;
 
 		double farthestInSight = -1;
+		boolean farthestIsInSight = false;
+
+		Movable nearestM = null;
+		Movable farthestM = null;
 
 		for (Movable m: Game.movables)
 		{
@@ -1101,22 +1154,54 @@ public abstract class Tank extends Movable implements ISolidObject
 				if (dist < nearest)
 				{
 					nearest = dist;
+					nearestM = m;
 				}
 
-				if (dist <= 3.5 && dist > farthestInSight)
+				if (dist > farthestInSight)
 				{
 					Ray r = new Ray(this.posX, this.posY, 0, 0, this);
 					r.vX = m.posX - this.posX;
 					r.vY = m.posY - this.posY;
 
-					if ((m == this.lastFarthestInSight && System.currentTimeMillis() - this.lastFarthestInSightUpdate <= 1000)
-							|| r.getTarget() == m)
+					boolean isInSight = r.getTarget() == m;
+					if ((m == this.lastFarthestInSight && System.currentTimeMillis() - this.lastFarthestInSightUpdate <= 1000) || isInSight)
 					{
+						farthestM = m;
 						farthestInSight = dist;
-						this.lastFarthestInSight = (Tank) m;
-						this.lastFarthestInSightUpdate = System.currentTimeMillis();
+						farthestIsInSight = false;
+
+						if (isInSight)
+						{
+							farthestIsInSight = true;
+							this.lastFarthestInSight = (Tank) m;
+							this.lastFarthestInSightUpdate = System.currentTimeMillis();
+						}
 					}
 				}
+			}
+		}
+
+		if (Game.drawAutoZoom)
+		{
+			if (farthestM != null)
+			{
+				Effect e = Effect.createNewEffect(farthestM.posX, farthestM.posY, 50, Effect.EffectType.explosion);
+				e.colR = 0;
+
+				if (farthestIsInSight)
+					e.colG = 255;
+				else
+					e.colB = 255;
+
+				e.radius = 100;
+				Game.effects.add(e);
+			}
+
+			if (nearestM != null)
+			{
+				Effect e = Effect.createNewEffect(nearestM.posX, nearestM.posY, 50, Effect.EffectType.explosion);
+				e.radius = 100;
+				Game.effects.add(e);
 			}
 		}
 
@@ -1127,13 +1212,13 @@ public abstract class Tank extends Movable implements ISolidObject
 	{
 		double dist = Math.min(4, Math.max(1, getAutoZoomRaw()));
 		double targetScale = Drawing.drawing.interfaceScale / dist;
-		return Math.max(Math.min((targetScale - Drawing.drawing.unzoomedScale) / (Drawing.drawing.interfaceScale - Drawing.drawing.unzoomedScale), 1), 0);
+		return Math.max(Math.min((targetScale - Drawing.drawing.unzoomedScale) / Math.max(0.001, Drawing.drawing.interfaceScale - Drawing.drawing.unzoomedScale), 1), 0);
 	}
 
 	public void setBufferCooldown(double value)
 	{
-		this.bullet.cooldown = Math.max(this.bullet.cooldown, value);
-		this.mine.cooldown = Math.max(this.mine.cooldown, value);
+		this.bulletItem.cooldown = Math.max(this.bulletItem.cooldown, value);
+		this.mineItem.cooldown = Math.max(this.mineItem.cooldown, value);
 	}
 
 	public Tank getTopLevelPossessor()
@@ -1216,10 +1301,20 @@ public abstract class Tank extends Movable implements ISolidObject
 
 	public static void drawTank(double x, double y, double r1, double g1, double b1, double r2, double g2, double b2)
 	{
-		drawTank(x, y, r1, g1, b1, r2, g2, b2, Game.tile_size / 2);
+		drawTank(x, y, r1, g1, b1, r2, g2, b2, (r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2, Game.tile_size / 2);
 	}
 
 	public static void drawTank(double x, double y, double r1, double g1, double b1, double r2, double g2, double b2, double size)
+	{
+		drawTank(x, y, r1, g1, b1, r2, g2, b2, (r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2, size);
+	}
+
+	public static void drawTank(double x, double y, double r1, double g1, double b1, double r2, double g2, double b2, double r3, double g3, double b3)
+	{
+		drawTank(x, y, r1, g1, b1, r2, g2, b2, r3, g3, b3, Game.tile_size / 2);
+	}
+
+	public static void drawTank(double x, double y, double r1, double g1, double b1, double r2, double g2, double b2, double r3, double g3, double b3, double size)
 	{
 		Drawing.drawing.setColor(r2, g2, b2);
 		Drawing.drawing.drawInterfaceModel(TankModels.tank.base, x, y, size, size, 0);
@@ -1231,7 +1326,55 @@ public abstract class Tank extends Movable implements ISolidObject
 
 		Drawing.drawing.drawInterfaceModel(TankModels.tank.turret, x, y, size, size, 0);
 
-		Drawing.drawing.setColor((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2);
+		Drawing.drawing.setColor(r3, g3, b3);
 		Drawing.drawing.drawInterfaceModel(TankModels.tank.turretBase, x, y, size, size, 0);
+	}
+
+	protected static class ClippedTile
+	{
+		public final int x;
+		public final int y;
+
+		public ClippedTile(int x, int y)
+		{
+			this.x = x;
+			this.y = y;
+		}
+
+		@Override
+		public boolean equals(Object c)
+		{
+			return c instanceof ClippedTile && ((ClippedTile) c).x == this.x && ((ClippedTile) c).y == this.y;
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return Objects.hash(x, y);
+		}
+	}
+
+	public boolean clips(double x, double y)
+	{
+		if (this.clippedTiles.isEmpty())
+			return false;
+		else
+			return this.clippedTiles.contains(new ClippedTile((int) (x / Game.tile_size), (int) (y / Game.tile_size)));
+	}
+
+	public boolean stillClips(double x, double y)
+	{
+		if (this.clippedTiles.isEmpty())
+			return false;
+		else
+		{
+			ClippedTile c = new ClippedTile((int) (x / Game.tile_size), (int) (y / Game.tile_size));
+			if (this.clippedTiles.contains(c))
+			{
+				this.stillClippedTiles.add(c);
+				return true;
+			}
+			return false;
+		}
 	}
 }

@@ -108,6 +108,12 @@ public class NoShapeRenderer extends BaseShapeRenderer
     }
 
     @Override
+    public void fillRect(double x, double y, double sX, double sY, double radius)
+    {
+
+    }
+
+    @Override
     public void fillBox(double x, double y, double z, double sX, double sY, double sZ, String texture)
     {
 
@@ -133,6 +139,18 @@ public class NoShapeRenderer extends BaseShapeRenderer
 
     @Override
     public void drawRect(double x, double y, double sX, double sY)
+    {
+
+    }
+
+    @Override
+    public void drawRect(double x, double y, double sX, double sY, double borderWidth)
+    {
+
+    }
+
+    @Override
+    public void drawRect(double x, double y, double sX, double sY, double borderWidth, double borderRadius)
     {
 
     }

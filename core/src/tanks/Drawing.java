@@ -4,11 +4,13 @@ import basewindow.IBatchRenderableObject;
 import basewindow.IModel;
 import basewindow.Model;
 import basewindow.ModelPart;
+import basewindow.transformation.AxisRotation;
 import tanks.gui.Button;
 import tanks.gui.Joystick;
 import tanks.gui.screen.ScreenGame;
 import tanks.network.event.EventPlaySound;
 import tanks.obstacle.Obstacle;
+import tanks.rendering.StaticTerrainRenderer;
 import tanks.rendering.TerrainRenderer;
 import tanks.rendering.TrackRenderer;
 import tanks.tank.TankPlayer;
@@ -68,8 +70,6 @@ public class Drawing
 
 	public TerrainRenderer terrainRenderer;
 	public TrackRenderer trackRenderer;
-
-	public static ModelPart rotatedRect;
 
 	public HashMap<String, Model> modelsByDir = new HashMap<>();
 
@@ -335,6 +335,11 @@ public class Drawing
 
 	public void fillRect(double x, double y, double sizeX, double sizeY)
 	{
+		fillRect(x, y, sizeX, sizeY, 0);
+	}
+
+	public void fillRect(double x, double y, double sizeX, double sizeY, double borderRadius)
+	{
 		double drawX = gameToAbsoluteX(x, sizeX);
 		double drawY = gameToAbsoluteY(y, sizeY);
 
@@ -344,7 +349,7 @@ public class Drawing
 		double drawSizeX = (sizeX * scale);
 		double drawSizeY = (sizeY * scale);
 
-		Game.game.window.shapeRenderer.fillRect(drawX, drawY, drawSizeX, drawSizeY);
+		Game.game.window.shapeRenderer.fillRect(drawX, drawY, drawSizeX, drawSizeY, borderRadius);
 	}
 
 	public void fillBackgroundRect(IBatchRenderableObject o, double x, double y, double sizeX, double sizeY)
@@ -622,6 +627,11 @@ public class Drawing
 
 	public void drawModel(IModel m, double x, double y, double z, double width, double height, double depth, double angle)
 	{
+		drawModel(m, x, y, z, width, height, depth, angle, true);
+	}
+
+	public void drawModel(IModel m, double x, double y, double z, double width, double height, double depth, double angle, boolean depthTest)
+	{
 		double drawX = gameToAbsoluteX(x, 0);
 		double drawY = gameToAbsoluteY(y, 0);
 		double drawZ = z * scale;
@@ -693,7 +703,33 @@ public class Drawing
 		m.draw(drawX, drawY, drawZ, drawSizeX, drawSizeY, drawSizeZ, yaw, pitch, roll, true);
 	}
 
+	public void drawModel(IModel m, double x, double y, double z, double width, double height, double depth, AxisRotation[] axisRotations)
+	{
+		double drawX = gameToAbsoluteX(x, 0);
+		double drawY = gameToAbsoluteY(y, 0);
+		double drawZ = z * scale;
+
+		if (isOutOfBounds(drawX, drawY))
+			return;
+
+		double drawSizeX = width * scale;
+		double drawSizeY = height * scale;
+		double drawSizeZ = depth * scale;
+
+		m.draw(drawX, drawY, drawZ, drawSizeX, drawSizeY, drawSizeZ, axisRotations, true);
+	}
+
 	public void drawRect(double x, double y, double sizeX, double sizeY)
+	{
+		drawRect(x, y, sizeX, sizeY, 1, 0);
+	}
+
+	public void drawRect(double x, double y, double sizeX, double sizeY, double borderWidth)
+	{
+		drawRect(x, y, sizeX, sizeY, borderWidth, 0);
+	}
+
+	public void drawRect(double x, double y, double sizeX, double sizeY, double borderWidth, double borderRadius)
 	{
 		double drawX = gameToAbsoluteX(x, sizeX);
 		double drawY = gameToAbsoluteY(y, sizeY);
@@ -704,7 +740,7 @@ public class Drawing
 		double drawSizeX = (sizeX * scale);
 		double drawSizeY = (sizeY * scale);
 
-		Game.game.window.shapeRenderer.drawRect(drawX, drawY, drawSizeX, drawSizeY);
+		Game.game.window.shapeRenderer.drawRect(drawX, drawY, drawSizeX, drawSizeY, borderWidth, borderRadius);
 	}
 
 	public void fillInterfaceOval(double x, double y, double sizeX, double sizeY)
@@ -839,6 +875,16 @@ public class Drawing
 		Game.game.window.shapeRenderer.fillRect(drawX, drawY, drawSizeX, drawSizeY);
 	}
 
+	public void fillInterfaceRect(double x, double y, double sizeX, double sizeY, double borderRadius)
+	{
+		double drawX = (interfaceScale * (x - sizeX / 2) + Math.max(0, Panel.windowWidth - interfaceSizeX * interfaceScale) / 2);
+		double drawY = (interfaceScale * (y - sizeY / 2) + Math.max(0, Panel.windowHeight - statsHeight - interfaceSizeY * interfaceScale) / 2);
+		double drawSizeX = (sizeX * interfaceScale);
+		double drawSizeY = (sizeY * interfaceScale);
+
+		Game.game.window.shapeRenderer.fillRect(drawX, drawY, drawSizeX, drawSizeY, borderRadius);
+	}
+
 	public void fillShadedInterfaceRect(double x, double y, double sizeX, double sizeY)
 	{
 		double drawX = (interfaceScale * (x - sizeX / 2) + Math.max(0, Panel.windowWidth - interfaceSizeX * interfaceScale) / 2);
@@ -894,12 +940,22 @@ public class Drawing
 
 	public void drawInterfaceRect(double x, double y, double sizeX, double sizeY)
 	{
-		double drawX = Math.round(interfaceScale * (x - sizeX / 2) + Math.max(0, Panel.windowWidth - interfaceSizeX * interfaceScale) / 2);
-		double drawY = Math.round(interfaceScale * (y - sizeY / 2) + Math.max(0, Panel.windowHeight - statsHeight - interfaceSizeY * interfaceScale) / 2);
+		drawInterfaceRect(x, y, sizeX, sizeY, 0, 0);
+	}
+
+	public void drawInterfaceRect(double x, double y, double sizeX, double sizeY, double lineWidth)
+	{
+		drawInterfaceRect(x, y, sizeX, sizeY, lineWidth, 0);
+	}
+
+	public void drawInterfaceRect(double x, double y, double sizeX, double sizeY, double lineWidth, double borderRadius)
+	{
+		double drawX = Math.round(interfaceScale * (x - sizeX / 2 - lineWidth) + Math.max(0, Panel.windowWidth - interfaceSizeX * interfaceScale) / 2);
+		double drawY = Math.round(interfaceScale * (y - sizeY / 2 - lineWidth) + Math.max(0, Panel.windowHeight - statsHeight - interfaceSizeY * interfaceScale) / 2);
 		double drawSizeX = Math.round(sizeX * interfaceScale);
 		double drawSizeY = Math.round(sizeY * interfaceScale);
 
-		Game.game.window.shapeRenderer.drawRect(drawX, drawY, drawSizeX, drawSizeY);
+		Game.game.window.shapeRenderer.drawRect(drawX, drawY, drawSizeX, drawSizeY, lineWidth, borderRadius);
 	}
 
 	public void drawText(double x, double y, String text)
@@ -1101,6 +1157,13 @@ public class Drawing
 		//return (y - (drawY / Window.scale + sizeY + yPadding / Window.scale * 2));
 	}
 
+	public void drawPopup(double x, double y, double sX, double sY, double borderWidth, double borderRadius)
+	{
+		fillInterfaceRect(x, y, sX, sY, borderRadius);
+		drawInterfaceRect(x + borderWidth, y + borderWidth, sX, sY, borderWidth, borderRadius);
+		Drawing.drawing.setColor(255, 255, 255);
+	}
+
 	public void playMusic(String sound, float volume, boolean looped, String id, long fadeTime)
 	{
 		if (Game.game.window.soundsEnabled && Game.musicEnabled)
@@ -1288,20 +1351,13 @@ public class Drawing
 		if (!enableMovingCameraX && !Game.followingCam)
 			return 0;
 
-		while (Panel.panel.pastPlayerTime.size() > 1 && Panel.panel.pastPlayerTime.get(1) < Panel.panel.age - getTrackOffset())
-		{
-			Panel.panel.pastPlayerX.remove(0);
-			Panel.panel.pastPlayerY.remove(0);
-			Panel.panel.pastPlayerTime.remove(0);
-		}
-
 		double x = playerX;
 
 		if (Panel.panel.pastPlayerTime.size() == 1)
 			x = Panel.panel.pastPlayerX.get(0);
 		else if (Panel.panel.pastPlayerTime.size() > 1)
 		{
-			double frac = (Panel.panel.age - getTrackOffset() - Panel.panel.pastPlayerTime.get(0)) / (Panel.panel.pastPlayerTime.get(1) - Panel.panel.pastPlayerTime.get(0));
+			double frac = Math.min(1, (Panel.panel.age - getTrackOffset() - Panel.panel.pastPlayerTime.get(0)) / (Panel.panel.pastPlayerTime.get(1) - Panel.panel.pastPlayerTime.get(0)));
 			x = Panel.panel.pastPlayerX.get(0) * (1 - frac) + Panel.panel.pastPlayerX.get(1) * frac;
 		}
 
@@ -1349,7 +1405,7 @@ public class Drawing
 			y = Panel.panel.pastPlayerY.get(0);
 		else if (Panel.panel.pastPlayerTime.size() > 1)
 		{
-			double frac = (Panel.panel.age - getTrackOffset() - Panel.panel.pastPlayerTime.get(0)) / (Panel.panel.pastPlayerTime.get(1) - Panel.panel.pastPlayerTime.get(0));
+			double frac = Math.min(1, (Panel.panel.age - getTrackOffset() - Panel.panel.pastPlayerTime.get(0)) / (Panel.panel.pastPlayerTime.get(1) - Panel.panel.pastPlayerTime.get(0)));
 			y = Panel.panel.pastPlayerY.get(0) * (1 - frac) + Panel.panel.pastPlayerY.get(1) * frac;
 		}
 
@@ -1422,7 +1478,7 @@ public class Drawing
 					+ Drawing.drawing.interfaceSizeX - Game.game.window.getEdgeBounds() / Drawing.drawing.interfaceScale;
 		else
 			return (Game.game.window.absoluteWidth / Drawing.drawing.interfaceScale - Drawing.drawing.interfaceSizeX) / 2
-					+ Drawing.drawing.interfaceSizeX - Game.game.window.getEdgeBounds() / Drawing.drawing.interfaceScale;
+				+ Drawing.drawing.interfaceSizeX - Game.game.window.getEdgeBounds() / Drawing.drawing.interfaceScale;
 	}
 
 	/**

@@ -4,7 +4,8 @@ import basewindow.InputCodes;
 import basewindow.InputPoint;
 import tanks.*;
 import tanks.bullet.Bullet;
-import tanks.bullet.BulletElectric;
+import tanks.bullet.BulletAirStrike;
+import tanks.bullet.BulletArc;
 import tanks.gui.Button;
 import tanks.gui.IFixedMenu;
 import tanks.gui.Joystick;
@@ -13,7 +14,7 @@ import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.gui.screen.ScreenTitle;
 import tanks.hotbar.Hotbar;
-import tanks.hotbar.item.*;
+import tanks.item.*;
 import tanks.network.event.EventLayMine;
 import tanks.network.event.EventShootBullet;
 
@@ -22,8 +23,11 @@ import tanks.network.event.EventShootBullet;
  */
 public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerTank, IDrawableLightSource
 {
-	public static ItemBullet default_bullet;
-	public static ItemMine default_mine;
+	public static Bullet default_bullet;
+	public static Mine default_mine;
+
+	public static String default_bullet_name = "Basic bullet";
+	public static String default_mine_name = "Basic mine";
 
 	public static Joystick controlStick;
 	public static Joystick shootStick;
@@ -47,7 +51,10 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 	protected long lastTrace = 0;
 	protected static boolean lockTrace = false;
 
-	protected double drawRange = -1;
+	protected double drawRangeMin = -1;
+	protected double drawRangeMax = -1;
+	protected double drawLifespan = -1;
+	protected boolean drawTrace = true;
 
 	public double mouseX;
 	public double mouseY;
@@ -58,13 +65,21 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 		this.angle = angle;
 		this.orientation = angle;
 		this.player.tank = this;
+		this.bulletItem.item.name = default_bullet_name;
+		this.mineItem.item.name = default_mine_name;
+		this.bulletItem.player = this.player;
+		this.mineItem.player = this.player;
 
 		this.colorR = Game.player.colorR;
 		this.colorG = Game.player.colorG;
 		this.colorB = Game.player.colorB;
-		this.secondaryColorR = Game.player.turretColorR;
-		this.secondaryColorG = Game.player.turretColorG;
-		this.secondaryColorB = Game.player.turretColorB;
+		this.secondaryColorR = Game.player.colorR2;
+		this.secondaryColorG = Game.player.colorG2;
+		this.secondaryColorB = Game.player.colorB2;
+		this.enableTertiaryColor = Game.player.enableTertiaryColor;
+		this.tertiaryColorR = Game.player.colorR3;
+		this.tertiaryColorG = Game.player.colorG3;
+		this.tertiaryColorB = Game.player.colorB3;
 
 		if (enableDestroyCheat)
 		{
@@ -221,15 +236,15 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 
 		double reload = this.getAttributeValue(AttributeModifier.reload, 1);
 
-		this.bullet.updateCooldown(reload);
-		this.mine.updateCooldown(reload);
+		this.bulletItem.updateCooldown(reload);
+		this.mineItem.updateCooldown(reload);
 
 		Hotbar h = Game.player.hotbar;
 		if (h.enabledItemBar)
 		{
-			for (Item i: h.itemBar.slots)
+			for (Item.ItemStack<?> i: h.itemBar.slots)
 			{
-				if (i != null && !(i instanceof ItemEmpty))
+				if (i != null && !i.isEmpty)
 				{
 					i.updateCooldown(reload);
 				}
@@ -240,18 +255,18 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 
 		boolean mine = !Game.game.window.touchscreen && Game.game.input.mine.isPressed();
 
-		boolean showRange = false;
+		boolean hideShootStick = false;
 		if (h.enabledItemBar && h.itemBar.selected >= 0)
 		{
-			Item i = h.itemBar.slots[h.itemBar.selected];
+			Item.ItemStack<?> i = h.itemBar.slots[h.itemBar.selected];
 
-			if (i instanceof ItemBullet)
-				showRange = ((ItemBullet) i).getRange() >= 0;
-			else if (i instanceof ItemRemote)
-				showRange = ((ItemRemote) i).range >= 0;
+			if (i.item instanceof ItemBullet)
+				hideShootStick = ((ItemBullet) i.item).bullet instanceof BulletArc || ((ItemBullet) i.item).bullet instanceof BulletAirStrike;
+			else if (i.item instanceof ItemRemote)
+				hideShootStick = ((ItemRemote) i.item).hideShootStick;
 		}
 
-		TankPlayer.shootStickHidden = showRange;
+		TankPlayer.shootStickHidden = hideShootStick;
 
 		boolean prevTouchCircle = this.drawTouchCircle;
 		this.drawTouchCircle = false;
@@ -262,7 +277,7 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 				if (!Game.bulletLocked && !this.disabled && !this.destroy)
 					mineButton.update();
 
-				if (!showRange)
+				if (!hideShootStick)
 					shootStick.update();
 			}
 
@@ -275,7 +290,7 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 					if (mineButton.justPressed)
 						mine = true;
 
-					if (shootStick.inputIntensity >= 0.2 && !showRange)
+					if (shootStick.inputIntensity >= 0.2 && !hideShootStick)
 					{
 						this.angle = shootStick.inputAngle;
 						trace = true;
@@ -371,27 +386,27 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 
 		if ((trace || lockTrace) && !Game.bulletLocked && !this.disabled && (Game.screen instanceof ScreenGame || Game.screen instanceof ScreenTitle))
 		{
-			double range = -1;
+			double lifespan = -1;
+			double rangeMin = -1;
+			double rangeMax = -1;
+			boolean showTrace = true;
 
 			Ray r = new Ray(this.posX, this.posY, this.angle, 1, this);
 
 			if (h.enabledItemBar && h.itemBar.selected >= 0)
 			{
-				Item i = h.itemBar.slots[h.itemBar.selected];
-				if (i instanceof ItemBullet)
+				Item.ItemStack<?> i = h.itemBar.slots[h.itemBar.selected];
+				if (i instanceof ItemBullet.ItemStackBullet)
 				{
-					r.bounces = ((ItemBullet) i).bounces;
-					range = ((ItemBullet) i).getRange();
+					Bullet b = ((ItemBullet.ItemStackBullet) i).item.bullet;
+					r.bounces = b.bounces;
+					lifespan = b.lifespan > 0 ? b.lifespan * b.speed + this.turretLength : 0;
+					rangeMax = b.getRangeMax();
+					rangeMin = b.getRangeMin();
+					showTrace = b.showTrace;
 
-					if (((ItemBullet) i).bulletClass.equals(BulletElectric.class))
-						r.bounces = 0;
-				}
-				else if (i instanceof ItemRemote)
-				{
-					if (((ItemRemote)i).bounces >= 0)
-						r.bounces = ((ItemRemote)i).bounces;
-
-					range = ((ItemRemote) i).range;
+					if (lifespan > 0)
+						lifespan *= this.getAttributeValue(AttributeModifier.bullet_speed, 1);
 				}
 			}
 
@@ -401,27 +416,34 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 			r.dotted = true;
 			r.moveOut(10 * this.size / Game.tile_size);
 
-			if (range >= 0)
-				this.drawRange = range;
-			else
+			if (rangeMax > 0)
+				this.drawRangeMax = rangeMax;
+
+			if (rangeMin > 0)
+				this.drawRangeMin = rangeMin;
+
+			if (lifespan > 0)
+				this.drawLifespan = lifespan;
+
+			if (showTrace)
 				r.getTarget();
 		}
 
 		super.update();
 	}
 
-	public Item getItem(boolean rightClick)
+	public Item.ItemStack<?> getItem(boolean rightClick)
 	{
-		Item i;
+		Item.ItemStack<?> i;
 
 		if (rightClick)
-			i = this.mine;
+			i = this.mineItem;
 		else
-			i = this.bullet;
+			i = this.bulletItem;
 
 		if (Game.player.hotbar.enabledItemBar)
 		{
-			Item i2 = Game.player.hotbar.itemBar.getSelectedItem(rightClick);
+			Item.ItemStack<?> i2 = Game.player.hotbar.itemBar.getSelectedItem(rightClick);
 			if (i2 != null)
 				i = i2;
 		}
@@ -440,7 +462,7 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 				return;
 		}
 
-		this.bullet.attemptUse(this);
+		this.bulletItem.attemptUse(this);
 	}
 
 	public void layMine()
@@ -454,21 +476,16 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 				return;
 		}
 
-		this.mine.attemptUse(this);
+		this.mineItem.attemptUse(this);
 	}
 
 	public void fireBullet(Bullet b, double speed, double offset)
 	{
-		if (speed <= 0)
-			speed = Double.MIN_NORMAL;
-
-		if (b.itemSound != null)
-		{
-			Drawing.drawing.playGlobalSound(b.itemSound, (float) ((Bullet.bullet_size / b.size) * (1 - (Math.random() * 0.5) * b.pitchVariation)));
-		}
+		if (speed == 0)
+			speed = Double.MIN_VALUE;
 
 		b.setPolarMotion(this.angle + offset, speed);
-		b.speed = speed;
+		b.speed = Math.abs(speed);
 		this.addPolarMotion(b.getPolarDirection() + Math.PI, 25.0 / 32.0 * b.recoil * this.getAttributeValue(AttributeModifier.recoil, 1) * b.frameDamageMultipler);
 
 		this.recoilSpeed = this.getSpeed();
@@ -479,18 +496,17 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 		}
 
 		if (b.moveOut)
-			b.moveOut(50 * this.size / Game.tile_size);
+			b.moveOut(Math.signum(speed) * this.turretLength * this.size / Game.tile_size);
 
 		b.setTargetLocation(this.mouseX, this.mouseY);
 
+		Integer num = 0;
+		if (Game.currentLevel != null)
+			num = Game.currentLevel.itemNumbers.get(b.item.item.name);
+		b.item.networkIndex = num == null ? 0 : num;
+
 		Game.eventsOut.add(new EventShootBullet(b));
 		Game.movables.add(b);
-
-		if (Crusade.crusadeMode && Crusade.currentCrusade != null)
-		{
-			CrusadePlayer cp = Crusade.currentCrusade.getCrusadePlayer(this.getPlayer());
-			cp.addItemUse(b.item);
-		}
 	}
 
 	public void layMine(Mine m)
@@ -502,12 +518,6 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 
 		Game.eventsOut.add(new EventLayMine(m));
 		Game.movables.add(m);
-
-		if (Crusade.crusadeMode && Crusade.currentCrusade != null)
-		{
-			CrusadePlayer cp = Crusade.currentCrusade.getCrusadePlayer(this.getPlayer());
-			cp.addItemUse(m.item);
-		}
 	}
 
 
@@ -542,15 +552,24 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 	}
 
 	@Override
-	public double getDrawRange()
-	{
-		return this.drawRange;
-	}
+	public double getDrawRangeMin() { return this.drawRangeMin; }
 
 	@Override
-	public void setDrawRange(double range)
+	public double getDrawRangeMax() { return this.drawRangeMax; }
+
+	@Override
+	public double getDrawLifespan() { return this.drawLifespan; }
+
+	@Override
+	public boolean getShowTrace() { return this.drawTrace; }
+
+	@Override
+	public void setDrawRanges(double lifespan, double rangeMin, double rangeMax, boolean trace)
 	{
-		this.drawRange = range;
+		this.drawLifespan = lifespan;
+		this.drawRangeMin = rangeMin;
+		this.drawRangeMax = rangeMax;
+		this.drawTrace = trace;
 	}
 
 	public static void setShootStick(boolean enabled)
@@ -586,9 +605,9 @@ public class TankPlayer extends Tank implements ILocalPlayerTank, IServerPlayerT
 		Hotbar h = Game.player.hotbar;
 		if (h.enabledItemBar)
 		{
-			for (Item i: h.itemBar.slots)
+			for (Item.ItemStack<?> i: h.itemBar.slots)
 			{
-				if (i != null && !(i instanceof ItemEmpty))
+				if (i != null && !i.isEmpty)
 				{
 					i.cooldown = Math.max(i.cooldown, value);
 				}

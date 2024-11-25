@@ -9,10 +9,7 @@ import tanks.minigames.Arcade;
 import tanks.network.event.EventArcadeBonuses;
 import tanks.translation.Translation;
 
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.*;
 
 public class ScreenArcadeBonuses extends Screen implements IDarkScreen
 {
@@ -24,14 +21,12 @@ public class ScreenArcadeBonuses extends Screen implements IDarkScreen
     public int score;
     public int originalScore;
     public double lastPoints = -1000;
-    public boolean odd = false;
     public int fireworksToSpawn = 0;
     public double fireworkCooldown = 0;
-    public int pointsPerFirework = 10;
-
-    ArrayList<Firework> spawnedFireworks = new ArrayList<>();
-    ArrayList<Firework> fireworks1 = new ArrayList<>();
-    ArrayList<Firework> fireworks2 = new ArrayList<>();
+    public double fireworkCooldownMultiplier = 1;
+    public int pointsPerFirework = 5;
+    public DisplayFireworks fireworksDisplay = new DisplayFireworks(false, 1);
+    public HashSet<Firework> spawnedFireworks = new HashSet<>();
 
     public ArrayList<Bonus> bonuses = new ArrayList<>();
 
@@ -235,7 +230,11 @@ public class ScreenArcadeBonuses extends Screen implements IDarkScreen
                 bonusCount++;
 
                 if (bonuses.get(2 - i).value > 2000000000)
+                {
                     Drawing.drawing.playSound("leave.ogg");
+                    this.music = "ready_music_3.ogg";
+                    Panel.forceRefreshMusic = true;
+                }
                 else if (bonuses.get(2 - i).value == 69)
                     Drawing.drawing.playSound("nice.ogg");
                 else
@@ -250,17 +249,23 @@ public class ScreenArcadeBonuses extends Screen implements IDarkScreen
                         double size = Game.game.window.fontRenderer.getStringSizeX(Drawing.drawing.fontSize, b.name) / Drawing.drawing.interfaceScale;
                         addEffect(this.centerX, this.centerY + (i - 1) * this.objYSpace * 4 / 6, size, this.objHeight, Game.effects, 1 + Math.min(b.value, 1000) / 25.0, -1, 0.5, b.red, b.green, b.blue);
                     }
-                    Game.game.window.soundPlayer.setMusicVolume(Game.musicVolume * (0.25f + 0.25f * bonusCount));
                 }
+
+                Game.game.window.soundPlayer.setMusicVolume(Game.musicVolume * (0.25f + 0.25f * bonusCount));
             }
         }
 
         if (age >= firstBonusTime + interBonusTime * 3 && bonusCount < 4)
         {
             Drawing.drawing.playSound("destroy.ogg");
-            Drawing.drawing.playSound("win.ogg", 1.0f, true);
-            this.music = "waiting_win.ogg";
-            Panel.forceRefreshMusic = true;
+
+            if (!this.music.equals("ready_music_3.ogg"))
+            {
+                Drawing.drawing.playSound("win.ogg", 1.0f, true);
+                this.music = "waiting_win.ogg";
+                Panel.forceRefreshMusic = true;
+            }
+
             bonusCount = 4;
 
             if (!Game.effectsEnabled)
@@ -270,16 +275,19 @@ public class ScreenArcadeBonuses extends Screen implements IDarkScreen
             }
 
             long fireworks =  ( (long)pointsPerFirework - 1 + bonuses.get(0).value + bonuses.get(1).value + bonuses.get(2).value) / pointsPerFirework;
-            if (fireworks > 200)
+            double maxFireworks = 1000;
+            if (fireworks > maxFireworks)
             {
-                pointsPerFirework *= Math.ceil(fireworks / 200.0);
-                fireworksToSpawn = 200;
+                pointsPerFirework *= Math.ceil(fireworks / maxFireworks);
+                fireworksToSpawn = (int) maxFireworks;
             }
             else
                 fireworksToSpawn = (int) fireworks;
+
+            fireworkCooldownMultiplier *= Math.min(1, 500.0 / fireworksToSpawn);
         }
 
-        if (age >= firstBonusTime + interBonusTime * 5 && this.getFireworkArray().size() == 0)
+        if (age >= firstBonusTime + interBonusTime * 5 && this.fireworksDisplay.getFireworkArray().size() == 0)
         {
             Panel.winlose = Translation.translate("You scored %d points!", score);
             Panel.win = true;
@@ -288,6 +296,9 @@ public class ScreenArcadeBonuses extends Screen implements IDarkScreen
                 Game.screen = new ScreenPartyInterlevel();
             else
                 Game.screen = new ScreenInterlevel();
+
+            if (this.music.equals("ready_music_3.ogg"))
+                Game.screen.music = this.music;
         }
     }
 
@@ -371,47 +382,39 @@ public class ScreenArcadeBonuses extends Screen implements IDarkScreen
 
         if (Game.effectsEnabled && !Game.game.window.drawingShadow)
         {
+            boolean spedUp = false;
             if (!Game.game.window.pressedKeys.isEmpty() || !Game.game.window.pressedButtons.isEmpty())
+            {
                 Panel.frameFrequency *= 4;
+                spedUp = true;
+            }
 
             fireworkCooldown -= Panel.frameFrequency;
             if (fireworksToSpawn > 0 && fireworkCooldown <= 0)
             {
                 fireworksToSpawn--;
-                fireworkCooldown = Math.random() * 5 + 2.5;
-                Firework f = new Firework(Firework.FireworkType.rocket, this.centerX + (Math.random() - 0.5) * 120, this.centerY + this.objYSpace * 2 + 5, this.getFireworkArray());
+                fireworkCooldown = (Math.random() * 5 + 2.5) / 2 * fireworkCooldownMultiplier;
+                Firework f = new Firework(Firework.FireworkType.rocket, this.centerX + (Math.random() - 0.5) * 120, this.centerY + this.objYSpace * 2 + 5, this.fireworksDisplay.getFireworkArray());
                 f.setRandomColor();
                 f.setVelocity();
                 f.maxAge /= 2;
-                spawnedFireworks.add(f);
+                this.spawnedFireworks.add(f);
             }
-
-            ArrayList<Firework> fireworks = getFireworkArray();
 
             Panel.frameFrequency *= 2;
-            for (int i = 0; i < fireworks.size(); i++)
-            {
-                fireworks.get(i).drawUpdate(fireworks, getOtherFireworkArray());
-            }
-            Panel.frameFrequency /= 2;
-
-            if (!Game.game.window.pressedKeys.isEmpty() || !Game.game.window.pressedButtons.isEmpty())
+            this.fireworksDisplay.draw();
+            if (spedUp)
                 Panel.frameFrequency /= 4;
 
-            if (Game.glowEnabled)
-            {
-                for (int i = 0; i < getFireworkArray().size(); i++)
-                {
-                    fireworks.get(i).drawGlow();
-                }
-            }
+            Panel.frameFrequency /= 2;
 
-            for (int i = 0; i < spawnedFireworks.size(); i++)
+            ArrayList<Firework> fireworks = this.fireworksDisplay.getFireworkArray();
+            ArrayList<Firework> removeFireworks = new ArrayList<>();
+            for (Firework f: this.spawnedFireworks)
             {
-                if (this.spawnedFireworks.get(i).age > this.spawnedFireworks.get(i).maxAge)
+                if (!fireworks.contains(f))
                 {
-                    this.spawnedFireworks.remove(i);
-                    i--;
+                    removeFireworks.add(f);
 
                     if (this.originalScore + this.bonuses.get(0).value + this.bonuses.get(1).value + this.bonuses.get(2).value > 0)
                         this.score = Math.min(this.originalScore + this.bonuses.get(0).value + this.bonuses.get(1).value + this.bonuses.get(2).value, this.score + this.pointsPerFirework);
@@ -421,9 +424,7 @@ public class ScreenArcadeBonuses extends Screen implements IDarkScreen
                 }
             }
 
-            fireworks.clear();
-
-            odd = !odd;
+            removeFireworks.forEach(spawnedFireworks::remove);
         }
     }
 
@@ -503,21 +504,5 @@ public class ScreenArcadeBonuses extends Screen implements IDarkScreen
         e.vY *= v;
         e.maxAge *= (Math.random() + 0.5) * max;
         glowEffects.add(e);
-    }
-
-    public ArrayList<Firework> getFireworkArray()
-    {
-        if (odd)
-            return fireworks2;
-        else
-            return fireworks1;
-    }
-
-    public ArrayList<Firework> getOtherFireworkArray()
-    {
-        if (odd)
-            return fireworks1;
-        else
-            return fireworks2;
     }
 }

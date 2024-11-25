@@ -1,7 +1,7 @@
 package tanks.registry;
 
-import tanks.hotbar.item.Item;
-import tanks.hotbar.item.ItemEmpty;
+import tanks.item.Item;
+import tanks.item.ItemEmpty;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;

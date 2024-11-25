@@ -29,8 +29,11 @@ public class Tanks extends ApplicationAdapter
 
 	public static Application.ApplicationType appType;
 
+	int age = 0;
+
 	public static void initialize()
 	{
+		Game.debug = true;
 		window = new LibGDXWindow("Tanks", 1400, 900, 1000, new GameUpdater(), new GameDrawer(), new GameWindowHandler(), false, true);
 
 		window.appType = appType;
@@ -78,6 +81,8 @@ public class Tanks extends ApplicationAdapter
 	@Override
 	public void render()
 	{
+		age++;
+
 		try
 		{
 			window.render();

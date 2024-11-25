@@ -44,6 +44,8 @@ public class LibGDXAsyncMiniAudioSoundPlayer extends BaseSoundPlayer
     public boolean currentMusicStoppable = true;
     public boolean prevMusicStoppable = true;
 
+    public long musicStart = 0;
+
     public final Queue<MusicCommand> musicCommands = new LinkedList<>();
     ArrayList<MusicCommand> tempMusicCommands = new ArrayList<>();
 
@@ -182,7 +184,7 @@ public class LibGDXAsyncMiniAudioSoundPlayer extends BaseSoundPlayer
             m.setVolume(volume);
 
             fadeBegin = System.currentTimeMillis();
-            if (continueID != null && continueID.equals(musicID))
+            if (continueID != null && continueID.equals(musicID) && prevMusic != null)
             {
                 float s = prevMusic.getCursorPosition();
                 m.seekTo(s / 2);
@@ -195,6 +197,7 @@ public class LibGDXAsyncMiniAudioSoundPlayer extends BaseSoundPlayer
                 for (MASound s: syncedTracks.values())
                     s.stop();
 
+                musicStart = System.currentTimeMillis();
                 syncedTracks.clear();
                 stoppingSyncedTracks.clear();
                 syncedTrackMaxVolumes.clear();
@@ -251,7 +254,9 @@ public class LibGDXAsyncMiniAudioSoundPlayer extends BaseSoundPlayer
         public void execute()
         {
             currentVolume = volume;
-            currentMusic.setVolume(volume);
+
+            if (currentMusic != null)
+                currentMusic.setVolume(volume);
 
             for (MASound m: syncedTracks.values())
                 m.setVolume(volume);
@@ -270,7 +275,41 @@ public class LibGDXAsyncMiniAudioSoundPlayer extends BaseSoundPlayer
     @Override
     public void setMusicSpeed(float speed)
     {
+        this.currentMusic.setPitch(speed);
+        this.prevMusic.setPitch(speed);
 
+        for (MASound s: this.syncedTracks.values())
+            s.setPitch(speed);
+    }
+
+    @Override
+    public float getMusicPos()
+    {
+        if (currentMusic == null)
+            return 0;
+
+        return currentMusic.getCursorPosition();
+    }
+
+    @Override
+    public long getMusicStartTime()
+    {
+        return this.musicStart;
+    }
+
+    @Override
+    public void setMusicPos(float pos)
+    {
+        if (currentMusic != null)
+            this.currentMusic.seekTo(pos / 2);
+
+        if (prevMusic != null)
+            this.prevMusic.seekTo(pos / 2);
+
+        this.musicStart = System.currentTimeMillis() - (long) (pos * 1000);
+
+        for (MASound s: this.syncedTracks.values())
+            s.seekTo(pos / 2);
     }
 
     public class StopMusicCommand extends MusicCommand
@@ -393,12 +432,6 @@ public class LibGDXAsyncMiniAudioSoundPlayer extends BaseSoundPlayer
     }
 
     @Override
-    public void registerCombinedMusic(String path, String id)
-    {
-
-    }
-
-    @Override
     public void exit()
     {
 
@@ -428,23 +461,15 @@ public class LibGDXAsyncMiniAudioSoundPlayer extends BaseSoundPlayer
 
         this.musicPlaying = this.currentMusic != null && this.currentMusic.isPlaying();
 
-        if (this.prevMusic != null && this.fadeEnd < System.currentTimeMillis())
+        if (this.prevMusic != null && this.fadeEnd <= System.currentTimeMillis())
         {
             if (this.currentMusic != null)
                 this.currentMusic.setVolume(this.currentVolume);
 
-            if (this.fadeEnd != this.fadeBegin)
-            {
-                float p = this.prevMusic.getCursorPosition();
-                float c = this.currentMusic.getCursorPosition();
-                //this.latency = l * 0.25f + this.latency * 0.75f;
-            }
-
             this.prevMusic.stop();
             this.prevMusic = null;
         }
-
-        if (this.prevMusic != null && this.currentMusic != null)
+        else if (this.prevMusic != null && this.currentMusic != null)
         {
             double frac = (System.currentTimeMillis() - this.fadeBegin) * 1.0 / (this.fadeEnd - this.fadeBegin);
 

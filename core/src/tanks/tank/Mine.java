@@ -3,40 +3,47 @@ package tanks.tank;
 import tanks.*;
 import tanks.gui.IFixedMenu;
 import tanks.gui.Scoreboard;
+import tanks.gui.screen.ScreenEditorBullet;
+import tanks.gui.screen.ScreenEditorMine;
 import tanks.gui.screen.ScreenPartyLobby;
-import tanks.hotbar.item.ItemMine;
+import tanks.item.ItemMine;
 import tanks.network.event.EventMineChangeTimer;
 import tanks.network.event.EventMineRemove;
+import tanks.tankson.*;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
+@TanksONable("mine")
+public class Mine extends Movable implements IAvoidObject, IDrawableLightSource, ICopyable<Mine>, ITanksONEditable
 {
     public static double mine_size = 30;
-    public static double mine_radius = Game.tile_size * 2.5;
+    public static double mine_radius = Game.tile_size * 2.25;
 
-    public double timer;
+    @Property(id = "explosion", name = "Explosion")
+    public Explosion explosion = new Explosion();
+
+    @Property(id = "timer", name = "Fuse length", desc = "The mine will explode this much time after it is placed \n \n 1 time unit = 0.01 seconds")
+    public double timer = 1000;
+
+    @Property(id = "size", name = "Size")
     public double size = mine_size;
+
     public double outlineColorR;
     public double outlineColorG;
     public double outlineColorB;
     public double height = 0;
 
+    @Property(id = "triggered_timer", name = "Triggered fuse length", desc = "If an enemy tank is within this mine's radius, its fuse will be shortened to this length \n \n 1 time unit = 0.01 seconds")
     public double triggeredTimer = 50;
-    public double damage = 2;
-    public boolean destroysObstacles = true;
-    public boolean destroysBullets = true;
 
-    public double radius = mine_radius;
     public Tank tank;
-    public ItemMine item;
-    public double cooldown = 0;
+    public ItemMine.ItemStackMine item;
     public int lastBeep = Integer.MAX_VALUE;
 
-    public double knockbackRadius = this.radius * 2;
-    public double bulletKnockback = 0;
-    public double tankKnockback = 0;
+    @Property(id = "max_live_mines", name = "Max live mines", desc = "The maximum number of this mine placed by one tank that can be onscreen at a time")
+    public int maxLiveMines = 2;
 
     public int networkID = -1;
 
@@ -46,7 +53,16 @@ public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
 
     public double[] lightInfo = new double[]{0, 0, 0, 0, 0, 0, 0};
 
-    public Mine(double x, double y, double timer, Tank t, ItemMine item)
+    /**
+     * Do not use if you plan to place this mine in the game field. Only for templates.
+     * Use another constructor if you want to add the mine to the game field.
+     */
+    public Mine()
+    {
+        super(0, 0);
+    }
+
+    public Mine(double x, double y, double timer, Tank t, ItemMine.ItemStackMine item)
     {
         super(x, y);
 
@@ -99,7 +115,7 @@ public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
         }
     }
 
-    public Mine(double x, double y, Tank t, ItemMine im)
+    public Mine(double x, double y, Tank t, ItemMine.ItemStackMine im)
     {
         this(x, y, 1000, t, im);
     }
@@ -186,7 +202,7 @@ public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
         boolean allyNear = false;
         for (Movable m: Game.movables)
         {
-            if (Math.pow(Math.abs(m.posX - this.posX), 2) + Math.pow(Math.abs(m.posY - this.posY), 2) < Math.pow(radius, 2))
+            if (Math.pow(Math.abs(m.posX - this.posX), 2) + Math.pow(Math.abs(m.posY - this.posY), 2) < Math.pow(this.explosion.radius, 2))
             {
                 if (m instanceof Tank && !m.destroy && ((Tank) m).targetable)
                 {
@@ -225,7 +241,7 @@ public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
     @Override
     public double getRadius()
     {
-        return this.radius;
+        return this.explosion.radius;
     }
 
     @Override
@@ -269,6 +285,11 @@ public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
 
     public static void drawRange2D(double posX, double posY, double size)
     {
+        drawRange2D(posX, posY, size, false);
+    }
+
+    public static void drawRange2D(double posX, double posY, double size, boolean inverted)
+    {
         int faces = (int) (size + 5);
         double r = Drawing.drawing.currentColorR;
         double g = Drawing.drawing.currentColorG;
@@ -280,7 +301,11 @@ public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
         {
             double angle = f * Math.PI * 2 / faces;
             double angle2 = (f + 1) * Math.PI * 2 / faces;
-            double inner = 0.8;
+            double inner = Math.max(0.5, (size - Game.tile_size * 2) / size);
+
+            if (inverted)
+                inner = 2 - inner;
+
             Drawing.drawing.setColor(r, g, b, a, 1);
             Drawing.drawing.addVertex(posX + Math.cos(angle) * size, posY + Math.sin(angle) * size, 0);
             Drawing.drawing.addVertex(posX + Math.cos(angle2) * size, posY + Math.sin(angle2) * size, 0);
@@ -289,6 +314,8 @@ public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
             Drawing.drawing.addVertex(posX + Math.cos(angle) * size * inner, posY + Math.sin(angle) * size * inner, 0);
         }
         Game.game.window.shapeRenderer.setBatchMode(false, true, false);
+
+        Drawing.drawing.setColor(r, g, b, a);
     }
 
     @Override
@@ -306,5 +333,17 @@ public class Mine extends Movable implements IAvoidObject, IDrawableLightSource
         this.lightInfo[5] = this.outlineColorG;
         this.lightInfo[6] = this.outlineColorB;
         return this.lightInfo;
+    }
+
+    @Override
+    public String toString()
+    {
+        return Serializer.toTanksON(this);
+    }
+
+    @Override
+    public String getName()
+    {
+        return "Mine";
     }
 }

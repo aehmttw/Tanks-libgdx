@@ -6,17 +6,11 @@ import tanks.Level;
 import tanks.Panel;
 import tanks.generator.LevelGeneratorVersus;
 import tanks.gui.Button;
-import tanks.gui.Firework;
 import tanks.gui.SpeedrunTimer;
-
-import java.util.ArrayList;
 
 public class ScreenPartyInterlevel extends Screen implements IDarkScreen
 {
-    boolean odd = false;
-
-    ArrayList<Firework> fireworks1 = new ArrayList<>();
-    ArrayList<Firework> fireworks2 = new ArrayList<>();
+    public DisplayFireworks fireworksDisplay = new DisplayFireworks();
 
     Button newLevel = new Button(this.centerX, this.centerY - this.objYSpace, this.objWidth, this.objHeight, "Generate new level", () ->
     {
@@ -125,17 +119,6 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
             this.music = "lose_music.ogg";
         }
 
-        if (Panel.win && Game.effectsEnabled)
-        {
-            for (int i = 0; i < 5; i++)
-            {
-                Firework f = new Firework(Firework.FireworkType.rocket, (Math.random() * 0.6 + 0.2) * Drawing.drawing.interfaceSizeX, Drawing.drawing.interfaceSizeY, getFireworkArray());
-                f.setRandomColor();
-                f.setVelocity();
-                getFireworkArray().add(f);
-            }
-        }
-
         save.posX = Drawing.drawing.interfaceSizeX - Drawing.drawing.interfaceScaleZoom * 40;
         save.posY = Drawing.drawing.interfaceSizeY - 50 - Drawing.drawing.interfaceScaleZoom * 40;
         save.image = "icons/save.png";
@@ -182,39 +165,10 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
         this.drawDefaultBackground();
 
         if (Panel.win && Game.effectsEnabled && !Game.game.window.drawingShadow)
-        {
-            ArrayList<Firework> fireworks = getFireworkArray();
-            if (Math.random() < Panel.frameFrequency * ScreenInterlevel.firework_frequency * Game.effectMultiplier)
-            {
-                Firework f = new Firework(Firework.FireworkType.rocket, (Math.random() * 0.6 + 0.2) * Drawing.drawing.interfaceSizeX, Drawing.drawing.interfaceSizeY, fireworks);
-                f.setRandomColor();
-                f.setVelocity();
-                getFireworkArray().add(f);
-            }
-
-            for (int i = 0; i < getFireworkArray().size(); i++)
-            {
-                fireworks.get(i).drawUpdate(fireworks, getOtherFireworkArray());
-            }
-
-            if (Game.glowEnabled)
-            {
-                for (int i = 0; i < getFireworkArray().size(); i++)
-                {
-                    fireworks.get(i).drawGlow();
-                }
-            }
-
-            //A fix to some glitchiness on ios
-            Drawing.drawing.setColor(0, 0, 0, 0);
-            Drawing.drawing.fillInterfaceRect(0, 0, 0, 0);
-
-            fireworks.clear();
-            odd = !odd;
-        }
-
-        if (Panel.win && Game.effectsEnabled)
             Panel.darkness = Math.min(Panel.darkness + Panel.frameFrequency * 1.5, 191);
+
+        if (Panel.win && Game.effectsEnabled && !Game.game.window.drawingShadow)
+            this.fireworksDisplay.draw();
 
         if (ScreenPartyLobby.isClient)
         {
@@ -250,21 +204,5 @@ public class ScreenPartyInterlevel extends Screen implements IDarkScreen
 
         if (!ScreenInterlevel.fromMinigames)
            save.draw();
-    }
-
-    public ArrayList<Firework> getFireworkArray()
-    {
-        if (odd)
-            return fireworks2;
-        else
-            return fireworks1;
-    }
-
-    public ArrayList<Firework> getOtherFireworkArray()
-    {
-        if (odd)
-            return fireworks1;
-        else
-            return fireworks2;
     }
 }

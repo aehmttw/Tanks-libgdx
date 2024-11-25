@@ -91,6 +91,9 @@ public class ScreenSelector extends Screen implements IConditionalOverlayScreen,
 
                 selector.selectedOption = j;
 
+                if (selector.sounds != null)
+                    Drawing.drawing.playSound(selector.sounds[selector.selectedOption]);
+
                 if (selector.quick)
                 {
                     Game.screen = screen;
@@ -100,6 +103,8 @@ public class ScreenSelector extends Screen implements IConditionalOverlayScreen,
             }
             );
 
+            if (selector.sounds != null)
+                b.silent = true;
 
             buttons.add(b);
         }

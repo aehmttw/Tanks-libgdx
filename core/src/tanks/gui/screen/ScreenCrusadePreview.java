@@ -8,13 +8,13 @@ import tanks.Level;
 import tanks.gui.Button;
 import tanks.gui.ButtonList;
 import tanks.gui.TextBox;
-import tanks.hotbar.item.Item;
+import tanks.item.Item;
 import tanks.network.event.EventShareCrusade;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class ScreenCrusadePreview extends Screen implements IItemScreen
+public class ScreenCrusadePreview extends Screen implements ICrusadeShopItemScreen
 {
     public enum Mode {options, levels, items}
 
@@ -120,11 +120,6 @@ public class ScreenCrusadePreview extends Screen implements IItemScreen
 
         this.crusade = c;
 
-        for (Item i: c.crusadeItems)
-        {
-            i.importProperties();
-        }
-
         if (Drawing.drawing.interfaceScaleZoom > 1)
         {
             this.levelButtons = new ButtonList(new ArrayList<>(), 0, this.centerX - Drawing.drawing.interfaceSizeX / 2, this.centerY - Drawing.drawing.interfaceSizeY / 2);
@@ -188,16 +183,16 @@ public class ScreenCrusadePreview extends Screen implements IItemScreen
     {
         this.itemButtons.buttons.clear();
 
-        for (int i = 0; i < this.crusade.crusadeItems.size(); i++)
+        for (int i = 0; i < this.crusade.crusadeShopItems.size(); i++)
         {
-            Button b = new Button(0, 0, this.objWidth, this.objHeight, this.crusade.crusadeItems.get(i).name);
+            Button b = new Button(0, 0, this.objWidth, this.objHeight, this.crusade.crusadeShopItems.get(i).itemStack.item.name);
 
-            b.image = crusade.crusadeItems.get(i).icon;
+            b.image = crusade.crusadeShopItems.get(i).itemStack.item.icon;
             b.imageXOffset = - b.sizeX / 2 + b.sizeY / 2 + 10;
             b.imageSizeX = b.sizeY;
             b.imageSizeY = b.sizeY;
 
-            int p = crusade.crusadeItems.get(i).price;
+            int p = crusade.crusadeShopItems.get(i).price;
 
             if (p == 0)
                 b.setSubtext("Free!");
@@ -312,16 +307,16 @@ public class ScreenCrusadePreview extends Screen implements IItemScreen
     }
 
     @Override
-    public void addItem(Item i)
+    public void addItem(Item.CrusadeShopItem i)
     {
-        crusade.crusadeItems.add(i);
-        Game.screen = new ScreenItemEditor(i, instance);
+        crusade.crusadeShopItems.add(i);
+        //Game.screen = new ScreenItemEditor(i, instance);
     }
 
     @Override
-    public void removeItem(Item i)
+    public void removeItem(Item.CrusadeShopItem i)
     {
-        this.crusade.crusadeItems.remove(i);
+        this.crusade.crusadeShopItems.remove(i);
         this.refreshItemButtons();
     }
 

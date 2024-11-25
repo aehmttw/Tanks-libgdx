@@ -88,7 +88,7 @@ public class LibGDXFile extends BaseFile
     @Override
     public void startReading() throws FileNotFoundException
     {
-        contents = file.readString().replace("\r\n", "").split("\n");
+        contents = file.readString().replace("\r\n", "\n").split("\n");
         readingLine = 0;
     }
 

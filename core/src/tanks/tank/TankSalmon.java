@@ -1,11 +1,10 @@
 package tanks.tank;
 
 import tanks.Game;
-import tanks.bullet.Bullet;
-import tanks.bullet.BulletHoming;
+import tanks.bullet.DefaultBullets;
 
 /**
- * A smart, very fast tank which fires rockets
+ * A tank which fires homing rockets
  */
 public class TankSalmon extends TankAIControlled
 {
@@ -15,11 +14,7 @@ public class TankSalmon extends TankAIControlled
 		this.cooldownBase = 150;
 		this.cooldownRandom = 50;
 		this.maxSpeed = 1.25;
-		this.bullet.speed = 25.0 / 4;
-		this.bullet.bounces = 0;
-		this.bullet.effect = Bullet.BulletEffect.fire;
-		this.bullet.bulletClass = BulletHoming.class;
-		this.bullet.name = "Homing bullet";
+		this.setBullet(DefaultBullets.homing_rocket);
 		this.turretAimSpeed = 0.06;
 		this.enablePathfinding = true;
 		this.enablePredictiveFiring = false;

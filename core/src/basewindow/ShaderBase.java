@@ -1,7 +1,5 @@
 package basewindow;
 
-import com.badlogic.gdx.Gdx;
-
 public class ShaderBase extends ShaderProgram implements IBaseShader
 {
     public Uniform1b texture;

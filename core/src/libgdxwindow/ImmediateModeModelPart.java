@@ -1,5 +1,6 @@
 package libgdxwindow;
 
+import basewindow.transformation.AxisRotation;
 import com.badlogic.gdx.Gdx;
 
 import basewindow.BaseWindow;
@@ -11,6 +12,12 @@ import java.util.ArrayList;
 public class ImmediateModeModelPart extends ModelPart
 {
     public BaseWindow window;
+
+    @Override
+    public void draw(double posX, double posY, double posZ, double sX, double sY, double sZ, AxisRotation[] axisRotations, boolean depthTest)
+    {
+
+    }
 
     @Override
     public void draw(double posX, double posY, double posZ, double sX, double sY, double sZ, double yaw, double pitch, double roll, boolean depthTest)

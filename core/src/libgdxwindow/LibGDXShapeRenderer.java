@@ -396,6 +396,12 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
     }
 
     @Override
+    public void fillRect(double x, double y, double sX, double sY, double radius)
+    {
+        fillRect(x, y, sX, sY);
+    }
+
+    @Override
     public void fillBox(double x, double y, double z, double sX, double sY, double sZ, String texture)
     {
         fillBox(x, y, z, sX, sY, sZ, (byte) 0, texture);
@@ -775,6 +781,18 @@ public class LibGDXShapeRenderer extends BaseShapeRenderer
         this.window.renderer.vertex((float) x, (float) (y + sY), 0);
         this.window.renderer.color(this.window.color);
         this.window.renderer.vertex((float) (x + sX), (float) (y + sY), 0);
+    }
+
+    @Override
+    public void drawRect(double x, double y, double sX, double sY, double borderWidth)
+    {
+
+    }
+
+    @Override
+    public void drawRect(double x, double y, double sX, double sY, double borderWidth, double borderRadius)
+    {
+
     }
 
     @Override

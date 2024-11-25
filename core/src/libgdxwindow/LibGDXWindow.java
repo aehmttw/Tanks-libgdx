@@ -667,6 +667,12 @@ public class LibGDXWindow extends BaseWindow
     }
 
     @Override
+    public void setWindowTitle(String s)
+    {
+
+    }
+
+    @Override
     public String getClipboard()
     {
         String s = Gdx.app.getClipboard().getContents();

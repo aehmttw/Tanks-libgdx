@@ -2,8 +2,6 @@ package tanks;
 
 import basewindow.*;
 import tanks.bullet.*;
-import tanks.bullet.legacy.BulletAir;
-import tanks.bullet.legacy.BulletFlame;
 import tanks.extension.Extension;
 import tanks.extension.ExtensionRegistry;
 import tanks.generator.LevelGenerator;
@@ -17,12 +15,13 @@ import tanks.gui.screen.leveleditor.OverlayEditorMenu;
 import tanks.gui.screen.leveleditor.ScreenLevelEditor;
 import tanks.hotbar.Hotbar;
 import tanks.hotbar.ItemBar;
-import tanks.hotbar.item.Item;
-import tanks.hotbar.item.ItemBullet;
-import tanks.hotbar.item.ItemMine;
-import tanks.hotbar.item.ItemShield;
+import tanks.item.Item;
+import tanks.item.ItemBullet;
+import tanks.item.ItemMine;
+import tanks.item.ItemShield;
 import tanks.minigames.Arcade;
 import tanks.minigames.Minigame;
+import tanks.minigames.TeamDeathmatch;
 import tanks.network.Client;
 import tanks.network.NetworkEventMap;
 import tanks.network.SteamNetworkHandler;
@@ -35,12 +34,8 @@ import tanks.rendering.ShaderGroundIntro;
 import tanks.rendering.ShaderGroundOutOfBounds;
 import tanks.rendering.ShaderTracks;
 import tanks.tank.*;
-import tanks.translation.Translation;
 
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
 import java.util.*;
 
 public class Game
@@ -62,6 +57,7 @@ public class Game
 	public boolean[][] unbreakableGrid;
 	public double[][] heightGrid;
 	public double[][] groundHeightGrid;
+	public double[][] groundEdgeHeightGrid;
 
 	public double[][] lastHeightGrid;
 
@@ -119,11 +115,14 @@ public class Game
 	public static double[][] tilesDepth = new double[28][18];
 
 	//Remember to change the version in android's build.gradle and ios's robovm.properties
-	public static final String version = "Tanks v1.5.2";
-	public static final int network_protocol = 54;
+	//Versioning has moved to version.txt
+	public static String version = "Tanks v-1.-1.-1";
+
+    public static final int network_protocol = 56;
 	public static boolean debug = false;
 	public static boolean traceAllRays = false;
 	public static boolean showTankIDs = false;
+	public static boolean drawAutoZoom = false;
 	public static final boolean cinematic = false;
 
 	public static String lastVersion = "Tanks v0";
@@ -185,9 +184,9 @@ public class Game
 	//public static boolean autoMinimapEnabled = true;
 	//public static float defaultZoom = 1.5f;
 
-	public static double[] color = new double[3];
+    public static double[] color = new double[3];
 
-	public static Screen screen;
+    public static Screen screen;
 	public static Screen prevScreen;
 
 	public static String ip = "";
@@ -347,6 +346,7 @@ public class Game
 		NetworkEventMap.register(EventBulletAddAttributeModifier.class);
 		NetworkEventMap.register(EventBulletStunEffect.class);
 		NetworkEventMap.register(EventBulletUpdateTarget.class);
+		NetworkEventMap.register(EventBulletReboundIndicator.class);
 		NetworkEventMap.register(EventLayMine.class);
 		NetworkEventMap.register(EventMineRemove.class);
 		NetworkEventMap.register(EventMineChangeTimer.class);
@@ -466,6 +466,7 @@ public class Game
 
 	public static void initScript()
 	{
+		version = "Tanks v" + Game.readVersionFromFile();
 		player = new Player(clientID, "");
 		Game.players.add(player);
 
@@ -480,8 +481,7 @@ public class Game
 		steamNetworkHandler.load();
 
 		registerEvents();
-
-		ItemBullet.initializeMaps();
+		DefaultBullets.initialize();
 
 		registerObstacle(Obstacle.class, "normal");
 		registerObstacle(ObstacleIndestructible.class, "hard");
@@ -495,9 +495,10 @@ public class Game
 		registerObstacle(ObstacleMud.class, "mud");
 		registerObstacle(ObstacleIce.class, "ice");
 		registerObstacle(ObstacleSnow.class, "snow");
-		//registerObstacle(ObstacleLava.class, "lava");
+//		registerObstacle(ObstacleLava.class, "lava");
 		registerObstacle(ObstacleBoostPanel.class, "boostpanel");
 		registerObstacle(ObstacleTeleporter.class, "teleporter");
+		registerObstacle(ObstacleBeatBlock.class, "beat");
 
 		registerTank(TankDummy.class, "dummy", 0);
 		registerTank(TankBrown.class, "brown", 1);
@@ -527,26 +528,21 @@ public class Game
 		registerTank(TankLightPink.class, "lightpink", 1.0 / 10);
 		registerTank(TankBoss.class, "boss", 1.0 / 40, true);
 
-		registerBullet(Bullet.class, Bullet.bullet_name, "bullet_normal.png");
-		registerBullet(BulletFlame.class, BulletFlame.bullet_name, "bullet_flame.png");
-		registerBullet(BulletLaser.class, BulletLaser.bullet_name, "bullet_laser.png");
-		registerBullet(BulletFreeze.class, BulletFreeze.bullet_name, "bullet_freeze.png");
-		registerBullet(BulletElectric.class, BulletElectric.bullet_name, "bullet_electric.png");
-		registerBullet(BulletHealing.class, BulletHealing.bullet_name, "bullet_healing.png");
-		registerBullet(BulletArc.class, BulletArc.bullet_name, "bullet_arc.png");
-		registerBullet(BulletExplosive.class, BulletExplosive.bullet_name, "bullet_explosive.png");
-		registerBullet(BulletBoost.class, BulletBoost.bullet_name, "bullet_boost.png");
-		registerBullet(BulletAir.class, BulletAir.bullet_name, "bullet_air.png");
-		registerBullet(BulletHoming.class, BulletHoming.bullet_name, "bullet_homing.png");
+		registerBullet(Bullet.class, Bullet.bullet_class_name, "bullet_normal.png");
+		registerBullet(BulletInstant.class, BulletInstant.bullet_class_name, "bullet_laser.png");
+		registerBullet(BulletGas.class, BulletGas.bullet_class_name, "bullet_flame.png");
+		registerBullet(BulletArc.class, BulletArc.bullet_class_name, "bullet_arc.png");
+		registerBullet(BulletAirStrike.class, BulletAirStrike.bullet_class_name, "bullet_fire.png");
 
-		registerItem(ItemBullet.class, ItemBullet.item_name, "bullet_normal.png");
-		registerItem(ItemMine.class, ItemMine.item_name, "mine.png");
-		registerItem(ItemShield.class, ItemShield.item_name, "shield.png");
+		registerItem(ItemBullet.class, ItemBullet.item_class_name, "bullet_normal.png");
+		registerItem(ItemMine.class, ItemMine.item_class_name, "mine.png");
+		registerItem(ItemShield.class, ItemShield.item_class_name, "shield.png");
 
 		registerMinigame(Arcade.class, "Arcade mode", "A gamemode which gets crazier as you---destroy more tanks.------Featuring a score mechanic, unlimited---lives, a time limit, item drops, and---end-game bonuses!");
+//		registerMinigame(TeamDeathmatch.class, "Team deathmatch", "something");
 
-		TankPlayer.default_bullet = (ItemBullet) Item.parseItem(null, Translation.translate("Basic bullet") + ",bullet_normal.png,1,0,1,100,bullet,normal,trail,3.125,1,1.0,5,20.0,10.0,1.0,false");
-		TankPlayer.default_mine = (ItemMine) Item.parseItem(null, Translation.translate("Basic mine") + ",mine.png,1,0,1,100,mine,1000.0,50.0,125.0,2.0,2,50.0,30.0,true");
+		TankPlayer.default_bullet = new Bullet();
+		TankPlayer.default_mine = new Mine();
 
 		homedir = System.getProperty("user.home");
 
@@ -846,6 +842,54 @@ public class Game
 
 		if (x >= 0 && y >= 0 && x < Game.currentSizeX && y < Game.currentSizeY && Game.enable3d)
 			Game.redrawGroundTiles.add(new int[]{x, y});
+
+		if (Game.enable3d && (!Game.fancyTerrain || !Game.enable3dBg))
+		{
+			if (x > 0) Game.redrawGroundTiles.add(new int[]{x - 1, y});
+			if (x < Game.currentSizeX - 1)  Game.redrawGroundTiles.add(new int[]{x + 1, y});
+			if (y > 0) Game.redrawGroundTiles.add(new int[]{x, y - 1});
+			if (y < Game.currentSizeY - 1) Game.redrawGroundTiles.add(new int[]{x, y + 1});
+		}
+	}
+
+	public static void recomputeHeightGrid()
+	{
+		for (int i = 0; i < Game.game.heightGrid.length; i++)
+		{
+			Arrays.fill(Game.game.heightGrid[i], -1000);
+			Arrays.fill(Game.game.groundHeightGrid[i], -1000);
+			Arrays.fill(Game.game.groundEdgeHeightGrid[i], -1000);
+		}
+
+		for (int i = 0; i < Game.obstacles.size(); i++)
+		{
+			Obstacle o = Game.obstacles.get(i);
+
+			if (o.replaceTiles)
+				o.postOverride();
+
+			int x = (int) (o.posX / Game.tile_size);
+			int y = (int) (o.posY / Game.tile_size);
+
+			if (!(!Game.enable3d || x < 0 || x >= Game.currentSizeX || y < 0 || y >= Game.currentSizeY))
+			{
+				Game.game.heightGrid[x][y] = Math.max(o.getTileHeight(), Game.game.heightGrid[x][y]);
+				Game.game.groundHeightGrid[x][y] = Math.max(o.getGroundHeight(), Game.game.groundHeightGrid[x][y]);
+				Game.game.groundEdgeHeightGrid[x][y] = Math.max(o.getEdgeDrawDepth(), Game.game.groundEdgeHeightGrid[x][y]);
+			}
+		}
+
+		for (int i = 0; i < Game.currentSizeX; i++)
+		{
+			for (int j = 0; j < Game.currentSizeY; j++)
+			{
+				if (Game.game.groundHeightGrid[i][j] <= -1000)
+					Game.game.groundHeightGrid[i][j] = Game.tilesDepth[i][j];
+
+				if (Game.game.groundEdgeHeightGrid[i][j] <= -1000)
+					Game.game.groundEdgeHeightGrid[i][j] = 0;
+			}
+		}
 	}
 
 	public static boolean usernameInvalid(String username)
@@ -878,6 +922,11 @@ public class Game
 
 	public static String timeInterval(long time1, long time2)
 	{
+		return timeInterval(time1, time2, false);
+	}
+
+	public static String timeInterval(long time1, long time2, boolean seconds)
+	{
 		long secs = (time2 - time1) / 1000;
 		long mins = secs / 60;
 		long hours = mins / 60;
@@ -891,6 +940,8 @@ public class Game
 			return hours % 24 + "h " + mins % 60 + "m";
 		else if (mins > 0)
 			return mins % 60 + "m";
+		else if (seconds)
+			return secs + "s";
 		else
 			return "less than 1m";
 	}
@@ -947,7 +998,7 @@ public class Game
 			ScreenPartyHost.server.close("The party has ended because the host crashed");
 
 		if (ScreenPartyLobby.isClient || Game.connectedToOnline)
-			Client.handler.ctx.close();
+			Client.handler.close();
 
 		ScreenPartyLobby.connections.clear();
 
@@ -1038,6 +1089,7 @@ public class Game
 		Game.tilesFlash = new double[28][18];
 		Game.game.heightGrid = new double[28][18];
 		Game.game.groundHeightGrid = new double[28][18];
+		Game.game.groundEdgeHeightGrid = new double[28][18];
 		Game.tileDrawables = new Obstacle[28][18];
 
 		double var = 0;
@@ -1121,6 +1173,17 @@ public class Game
 		return r;
 	}
 
+	public static double sampleEdgeGroundDepth(int x, int y)
+	{
+		double r;
+		if (!Game.enable3d || x < 0 || x >= Game.currentSizeX || y < 0 || y >= Game.currentSizeY)
+			r = 0;
+		else
+			r = Game.game.groundEdgeHeightGrid[x][y];
+
+		return r;
+	}
+
 	public static boolean stringsEqual(String a, String b)
 	{
 		if (a == null && b == null)
@@ -1172,54 +1235,56 @@ public class Game
 	}
 
 	public static double[] getRainbowColor(double fraction)
-	{
-		double col = fraction * 255 * 6;
+    {
+		fraction = ((fraction % 1.0) + 1) % 1.0;
 
-		double r = 0;
-		double g = 0;
-		double b = 0;
+        double col = fraction * 255 * 6;
 
-		if (col <= 255)
-		{
-			r = 255;
-			g = col;
-			b = 0;
-		}
-		else if (col <= 255 * 2)
-		{
-			r = 255 * 2 - col;
-			g = 255;
-			b = 0;
-		}
-		else if (col <= 255 * 3)
-		{
-			g = 255;
-			b = col - 255 * 2;
-		}
-		else if (col <= 255 * 4)
-		{
-			g = 255 * 4 - col;
-			b = 255;
-		}
-		else if (col <= 255 * 5)
-		{
-			r = col - 255 * 4;
-			g = 0;
-			b = 255;
-		}
-		else if (col <= 255 * 6)
-		{
-			r = 255;
-			g = 0;
-			b = 255 * 6 - col;
-		}
+        double r = 0;
+        double g = 0;
+        double b = 0;
 
-		color[0] = r;
-		color[1] = g;
-		color[2] = b;
+        if (col <= 255)
+        {
+            r = 255;
+            g = col;
+            b = 0;
+        }
+        else if (col <= 255 * 2)
+        {
+            r = 255 * 2 - col;
+            g = 255;
+            b = 0;
+        }
+        else if (col <= 255 * 3)
+        {
+            g = 255;
+            b = col - 255 * 2;
+        }
+        else if (col <= 255 * 4)
+        {
+            g = 255 * 4 - col;
+            b = 255;
+        }
+        else if (col <= 255 * 5)
+        {
+            r = col - 255 * 4;
+            g = 0;
+            b = 255;
+        }
+        else if (col <= 255 * 6)
+        {
+            r = 255;
+            g = 0;
+            b = 255 * 6 - col;
+        }
 
-		return color;
-	}
+        color[0] = r;
+        color[1] = g;
+        color[2] = b;
+
+        return color;
+    }
 
 	public static void exitToTitle()
 	{
@@ -1376,5 +1441,22 @@ public class Game
 		level.loadLevel();
 	}
 
+	public static String readVersionFromFile()
+	{
+		ArrayList<String> version = Game.game.fileManager.getInternalFileContents("/version.txt");
+		if (version == null)
+			return "-1.-1.-1";
+		else
+			return version.get(0);
+	}
+
+	public static String readHashFromFile()
+	{
+		ArrayList<String> hash = Game.game.fileManager.getInternalFileContents("/hash.txt");
+		if (hash == null)
+			return "-1.-1.-1";
+		else
+			return hash.get(0);
+	}
 
 }

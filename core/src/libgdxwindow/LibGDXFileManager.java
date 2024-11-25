@@ -2,6 +2,7 @@ package libgdxwindow;
 
 import basewindow.BaseFile;
 import basewindow.BaseFileManager;
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 
@@ -28,5 +29,18 @@ public class LibGDXFileManager extends BaseFileManager
             return null;
 
         return new ArrayList<>(Arrays.asList(f.readString().replace("\r", "").split("\n")));
+    }
+
+    @Override
+    public void openFileManager(String path)
+    {
+        String f = new LibGDXFile(path).file.toString();
+        if (f.startsWith("/"))
+            f = f.substring(1);
+
+        if (Gdx.app.getType() == Application.ApplicationType.iOS)
+            Gdx.net.openURI("shareddocuments://" + Gdx.files.getExternalStoragePath().toString() + f);
+        else
+            Gdx.net.openURI("file://" + Gdx.files.getExternalStoragePath().toString() + f);
     }
 }

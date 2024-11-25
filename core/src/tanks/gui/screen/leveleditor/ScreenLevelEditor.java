@@ -4,11 +4,11 @@ import basewindow.BaseFile;
 import basewindow.InputPoint;
 import tanks.*;
 import tanks.gui.Button;
-import tanks.gui.ButtonList;
 import tanks.gui.screen.*;
-import tanks.hotbar.item.Item;
+import tanks.item.Item;
 import tanks.network.event.INetworkEvent;
 import tanks.obstacle.Obstacle;
+import tanks.obstacle.ObstacleBeatBlock;
 import tanks.obstacle.ObstacleUnknown;
 import tanks.tank.Tank;
 import tanks.tank.TankAIControlled;
@@ -18,6 +18,7 @@ import tanks.tank.TankSpawnMarker;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Objects;
 
 public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 {
@@ -42,6 +43,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 	public boolean stagger = false;
 	public boolean oddStagger = false;
 	public int mouseObstacleGroup = 0;
+	public int mouseObstacleBeatPattern = 0;
 	public boolean paused = false;
 	public boolean objectMenu = false;
 
@@ -95,6 +97,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 	public HashSet<String> prevTankMusics = new HashSet<>();
 	public HashSet<String> tankMusics = new HashSet<>();
+	public HashSet<String> overlayMusics = new HashSet<>();
 
 	public ArrayList<Object> clipboard = new ArrayList<>();
 
@@ -224,7 +227,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 	Button teamShortcut = new Button(0, -1000, 70, 70, "", () ->
 	{
 		paused = true;
-		Game.screen = new OverlaySelectTeam(Game.screen, (ScreenLevelEditor) Game.screen);
+		Game.screen = new OverlayTeams(Game.screen, (ScreenLevelEditor) Game.screen);
 	}, "Tank team (%s)", Game.game.input.editorTeam.getInputs()
 	);
 
@@ -240,6 +243,13 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		paused = true;
 		Game.screen = new OverlayBlockGroupID(Game.screen, (ScreenLevelEditor) Game.screen);
 	}, "Block group ID (%s)", Game.game.input.editorGroupID.getInputs()
+	);
+
+	Button beatPatternShortcut = new Button(0, -1000, 70, 70, "", () ->
+	{
+		paused = true;
+		Game.screen = new OverlayBeatBlockPattern(Game.screen, (ScreenLevelEditor) Game.screen);
+	}, "Beat pattern (%s)", Game.game.input.editorGroupID.getInputs()
 	);
 
 	Button selectSquareToggle = new Button(0, -1000, 70, 70, "", () ->
@@ -335,6 +345,10 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		groupShortcut.sizeY *= controlsSizeMultiplier;
 		groupShortcut.fullInfo = true;
 
+		beatPatternShortcut.sizeX *= controlsSizeMultiplier;
+		beatPatternShortcut.sizeY *= controlsSizeMultiplier;
+		beatPatternShortcut.fullInfo = true;
+
 		teamShortcut.sizeX *= controlsSizeMultiplier;
 		teamShortcut.sizeY *= controlsSizeMultiplier;
 		teamShortcut.fullInfo = true;
@@ -389,6 +403,9 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		this.prevTankMusics.addAll(this.tankMusics);
 		this.tankMusics.clear();
 
+		this.tankMusics.addAll(this.overlayMusics);
+		this.overlayMusics.clear();
+
 		if (tanks)
 		{
 			for (Movable m : Game.movables)
@@ -397,6 +414,22 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				{
 					this.tankMusics.addAll(((Tank) m).musicTracks);
 				}
+			}
+
+			Game.currentLevel.beatBlocks = 0;
+			for (Obstacle o: Game.obstacles)
+			{
+				if (o instanceof ObstacleBeatBlock)
+				{
+					Game.currentLevel.synchronizeMusic = true;
+					Game.currentLevel.beatBlocks |= (int) ((ObstacleBeatBlock) o).beatFrequency;
+					break;
+				}
+			}
+
+			if (Game.currentLevel.beatBlocks > 0)
+			{
+				this.tankMusics.add("beatblocks/beat_blocks.ogg");
 			}
 		}
 
@@ -541,6 +574,9 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 			teamShortcut.posX = heightShortcut.posX - hStep;
 			teamShortcut.posY = heightShortcut.posY - vStep;
 
+			beatPatternShortcut.posX = teamShortcut.posX;
+			beatPatternShortcut.posY = teamShortcut.posY;
+
 			selectSquareToggle.posX = heightShortcut.posX;
 			selectSquareToggle.posY = heightShortcut.posY;
 
@@ -583,8 +619,11 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				if (currentPlaceable == Placeable.obstacle && mouseObstacle.enableStacking)
 					heightShortcut.update();
 
-				if (currentPlaceable == Placeable.obstacle && mouseObstacle.enableGroupID)
+				if (currentPlaceable == Placeable.obstacle && mouseObstacle.enableGroupID && !(mouseObstacle instanceof ObstacleBeatBlock))
 					groupShortcut.update();
+
+				if (currentPlaceable == Placeable.obstacle && mouseObstacle instanceof ObstacleBeatBlock)
+					beatPatternShortcut.update();
 
 				if (currentPlaceable == Placeable.playerTank || currentPlaceable == Placeable.enemyTank)
 					rotateShortcut.update();
@@ -707,7 +746,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				mouseObstacle = Game.registryObstacle.getEntry(obstacleNum).getObstacle(0, 0);
 
 				if (mouseObstacle.enableGroupID)
-					mouseObstacle.setMetadata(mouseObstacleGroup + "");
+					mouseObstacle.setMetadata((mouseObstacle instanceof ObstacleBeatBlock ? mouseObstacleBeatPattern : mouseObstacleGroup) + "");
 			}
 
 			if (up && currentPlaceable == Placeable.enemyTank)
@@ -721,7 +760,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				mouseObstacle = Game.registryObstacle.getEntry(obstacleNum).getObstacle(0, 0);
 
 				if (mouseObstacle.enableGroupID)
-					mouseObstacle.setMetadata(mouseObstacleGroup + "");
+					mouseObstacle.setMetadata((mouseObstacle instanceof ObstacleBeatBlock ? mouseObstacleBeatPattern : mouseObstacleGroup) + "");
 			}
 
 			if ((up || down) && !(up && down))
@@ -790,7 +829,12 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 					playerTeamNum = (playerTeamNum - 1 + this.teams.size() + 1) % (this.teams.size() + 1);
 				else if (currentPlaceable == Placeable.obstacle)
 				{
-					if (mouseObstacle.enableStacking)
+					if (mouseObstacle instanceof ObstacleBeatBlock)
+					{
+						mouseObstacleBeatPattern = Math.max(mouseObstacleBeatPattern - 1, 0);
+						mouseObstacle.setMetadata(mouseObstacleBeatPattern + "");
+					}
+					else if (mouseObstacle.enableStacking)
 					{
 						mouseObstacleHeight = Math.max(mouseObstacleHeight - 0.5, 0.5);
 
@@ -815,7 +859,12 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 					playerTeamNum = (playerTeamNum + 1) % (this.teams.size() + 1);
 				else if (currentPlaceable == Placeable.obstacle)
 				{
-					if (mouseObstacle.enableStacking)
+					if (mouseObstacle instanceof ObstacleBeatBlock)
+					{
+						mouseObstacleBeatPattern = Math.min(mouseObstacleBeatPattern + 1, 7);
+						mouseObstacle.setMetadata(mouseObstacleBeatPattern + "");
+					}
+					else if (mouseObstacle.enableStacking)
 						mouseObstacleHeight = Math.min(mouseObstacleHeight + 0.5, Obstacle.default_max_height);
 					else if (mouseObstacle.enableGroupID)
 					{
@@ -1016,24 +1065,33 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		{
 			Game.game.input.editorHeight.invalidate();
 			this.heightShortcut.function.run();
+			((ScreenLevelEditorOverlay) Game.screen).triggerKeybind = Game.game.input.editorHeight;
 		}
 
 		if (Game.game.input.editorGroupID.isValid() && mouseObstacle.enableGroupID && currentPlaceable == Placeable.obstacle)
 		{
 			Game.game.input.editorGroupID.invalidate();
-			this.groupShortcut.function.run();
+
+			if (mouseObstacle instanceof ObstacleBeatBlock)
+				this.beatPatternShortcut.function.run();
+			else
+				this.groupShortcut.function.run();
+
+			((ScreenLevelEditorOverlay) Game.screen).triggerKeybind = Game.game.input.editorGroupID;
 		}
 
 		if (Game.game.input.editorTeam.isValid() && (currentPlaceable == Placeable.enemyTank || currentPlaceable == Placeable.playerTank))
 		{
 			Game.game.input.editorTeam.invalidate();
 			this.teamShortcut.function.run();
+			((ScreenLevelEditorOverlay) Game.screen).triggerKeybind = Game.game.input.editorTeam;
 		}
 
 		if (Game.game.input.editorRotate.isValid() && (currentPlaceable == Placeable.enemyTank || currentPlaceable == Placeable.playerTank))
 		{
 			Game.game.input.editorRotate.invalidate();
 			this.rotateShortcut.function.run();
+			((ScreenLevelEditorOverlay) Game.screen).triggerKeybind = Game.game.input.editorRotate;
 		}
 
 		if (redoActions.size() > 0 && redoLength != actions.size())
@@ -1614,13 +1672,17 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 										o.stackHeight -= 0.5;
 								}
 							}
-							else if (o.enableGroupID)
-								o.setMetadata(mouseObstacleGroup + "");
+
+							if (o.enableGroupID)
+							{
+								String suffix = o.enableStacking ?  "#" + o.stackHeight : "";
+								o.setMetadata((o instanceof ObstacleBeatBlock ? mouseObstacleBeatPattern : mouseObstacleGroup) + suffix);
+							}
 
 							mouseObstacle = Game.registryObstacle.getEntry(obstacleNum).getObstacle(o.posX, o.posY);
 
 							if (mouseObstacle.enableGroupID)
-								mouseObstacle.setMetadata(mouseObstacleGroup + "");
+								mouseObstacle.setMetadata((o instanceof ObstacleBeatBlock ? mouseObstacleBeatPattern : mouseObstacleGroup) + "");
 
 							this.actions.add(new Action.ActionObstacle(o, true));
 							Game.addObstacle(o);
@@ -1671,6 +1733,10 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 					mouseObstacleHeight = n.stackHeight;
 					mouseObstacleStartHeight = n.startHeight;
 					mouseObstacleGroup = n.groupID;
+
+					if (n instanceof ObstacleBeatBlock)
+						mouseObstacleBeatPattern = n.groupID;
+
 					mouseTank.posX = mouseObstacle.posX;
 					mouseTank.posY = mouseObstacle.posY;
 
@@ -1696,7 +1762,10 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 						((TankAIControlled) o).cloneProperties((TankAIControlled) n);
 					}
 					else
+					{
 						n = (Tank) o.getClass().getConstructor(String.class, double.class, double.class, double.class).newInstance(((Tank) o).name, ((Tank) o).posX + prevMouseObstacle.posX, ((Tank) o).posY + prevMouseObstacle.posY, ((Tank) o).angle);
+						n.musicTracks = Game.registryTank.tankMusics.get(n.name);
+					}
 
 					n.team = ((Tank) o).team;
 					n.destroy = ((Tank) o).destroy;
@@ -1735,6 +1804,11 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 	public void save()
 	{
+		this.save(this.name);
+	}
+
+	public void save(String levelName)
+	{
 		StringBuilder level = new StringBuilder("{");
 
 		if (!this.level.editable)
@@ -1744,18 +1818,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				.append(",").append((int) (this.level.timer / 100)).append(",").append((int) Math.round(this.level.light * 100)).append(",").append((int) Math.round(this.level.shadow * 100)).append("|");
 
 		ArrayList<Obstacle> unmarked = (ArrayList<Obstacle>) Game.obstacles.clone();
-		double[][][] obstacles = new double[Game.registryObstacle.obstacleEntries.size()][this.level.sizeX][this.level.sizeY];
-
-		for (int i = 0; i < obstacles.length; i++)
-		{
-			for (int j = 0; j < obstacles[i].length; j++)
-			{
-				for (int k = 0; k < obstacles[i][j].length; k++)
-				{
-					obstacles[i][j][k] = -1;
-				}
-			}
-		}
+		String[][][] obstacles = new String[Game.registryObstacle.obstacleEntries.size()][this.level.sizeX][this.level.sizeY];
 
 		for (int h = 0; h < Game.registryObstacle.obstacleEntries.size(); h++)
 		{
@@ -1769,10 +1832,15 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 				if (x < obstacles[h].length && x >= 0 && y < obstacles[h][0].length && y >= 0 && o.name.equals(Game.registryObstacle.getEntry(h).name))
 				{
-					obstacles[h][x][y] = o.stackHeight;
+					obstacles[h][x][y] = o.stackHeight + "";
 
 					if (o.enableGroupID)
-						obstacles[h][x][y] = o.groupID;
+					{
+						if (o.enableStacking)
+							obstacles[h][x][y] = o.groupID + "#" + o.stackHeight;
+						else
+							obstacles[h][x][y] = o.groupID + "";
+					}
 
 					unmarked.remove(o);
 				}
@@ -1785,9 +1853,9 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 			{
 				for (int j = 0; j < this.level.sizeY; j++)
 				{
-					if (obstacles[h][i][j] >= 0)
+					if (obstacles[h][i][j] != null)
 					{
-						double stack = obstacles[h][i][j];
+						String stack = obstacles[h][i][j];
 
 						int xLength = 0;
 
@@ -1797,7 +1865,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 							if (i + xLength >= obstacles[h].length)
 								break;
-							else if (obstacles[h][i + xLength][j] != stack)
+							else if (!Objects.equals(obstacles[h][i + xLength][j], stack))
 								break;
 						}
 
@@ -1810,14 +1878,14 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 							if (j + yLength >= obstacles[h][0].length)
 								break;
-							else if (obstacles[h][i][j + yLength] != stack)
+							else if (!Objects.equals(obstacles[h][i][j + yLength], stack))
 								break;
 						}
 
 						String name = "";
 						String obsName = Game.registryObstacle.obstacleEntries.get(h).name;
 
-						if (!obsName.equals("normal") || stack != 1)
+						if (!obsName.equals("normal") || stack != null)
 							name = "-" + obsName;
 
 						if (xLength >= yLength)
@@ -1827,28 +1895,28 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 							else
 								level.append(i).append("...").append(i + xLength - 1).append("-").append(j).append(name);
 
-							if ((obs.enableStacking && stack != 1) || (obs.enableGroupID && stack != 0))
+							if ((obs.enableStacking && stack != null) || (obs.enableGroupID && !("0".equals(stack))))
 								level.append("-").append(stack);
 
 							level.append(",");
 
 							for (int z = 0; z < xLength; z++)
 							{
-								obstacles[h][i + z][j] = -1;
+								obstacles[h][i + z][j] = null;
 							}
 						}
 						else
 						{
 							level.append(i).append("-").append(j).append("...").append(j + yLength - 1).append(name);
 
-							if ((obs.enableStacking && stack != 1) || (obs.enableGroupID && stack != 0))
+							if ((obs.enableStacking && !("1.0".equals(stack))) || (obs.enableGroupID && !("0".equals(stack))))
 								level.append("-").append(stack);
 
 							level.append(",");
 
 							for (int z = 0; z < yLength; z++)
 							{
-								obstacles[h][i][j + z] = -1;
+								obstacles[h][i][j + z] = null;
 							}
 						}
 					}
@@ -1864,10 +1932,14 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 			Obstacle u = unmarked.get(i);
 			if (u instanceof ObstacleUnknown && ((ObstacleUnknown) u).metadata != null)
 				level.append("-").append(((ObstacleUnknown) u).metadata);
-			else if (u.enableStacking)
-				level.append("-").append(u.stackHeight);
-			else if (u.enableGroupID)
-				level.append("-").append(u.groupID);
+			else
+			{
+				if (u.enableGroupID)
+					level.append("-").append(u.groupID);
+
+				if (u.enableStacking)
+					level.append("-").append(u.stackHeight);
+			}
 
 
 			level.append(",");
@@ -1921,12 +1993,6 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 		level.append("}");
 
-		for (Item i: this.level.shop)
-			i.exportProperties();
-
-		for (Item i: this.level.startingItems)
-			i.exportProperties();
-
 		if (this.level.startingCoins > 0)
 			level.append("\ncoins\n").append(this.level.startingCoins);
 
@@ -1934,7 +2000,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		{
 			level.append("\nshop");
 
-			for (Item i : this.level.shop)
+			for (Item.ShopItem i : this.level.shop)
 				level.append("\n").append(i.toString());
 		}
 
@@ -1942,7 +2008,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		{
 			level.append("\nitems");
 
-			for (Item i : this.level.startingItems)
+			for (Item.ItemStack<?> i : this.level.startingItems)
 				level.append("\n").append(i.toString());
 		}
 
@@ -1956,7 +2022,7 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 		Game.currentLevelString = level.toString();
 
-		BaseFile file = Game.game.fileManager.getFile(Game.homedir + Game.levelDir + "/" + name);
+		BaseFile file = Game.game.fileManager.getFile(Game.homedir + Game.levelDir + "/" + levelName);
 		if (file.exists())
 		{
 			if (!this.level.editable)
@@ -1990,34 +2056,25 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		else
 			this.fontBrightness = 0;
 
-		for (Obstacle o: Game.obstacles)
+		if (Panel.panel.continuation == null)
 		{
-			o.baseGroundHeight = Game.sampleGroundHeight(o.posX, o.posY);
-		}
-
-		if (Game.enable3d)
-			for (int i = 0; i < Game.obstacles.size(); i++)
+			for (Obstacle o : Game.obstacles)
 			{
-				Obstacle o = Game.obstacles.get(i);
-
-				if (o.replaceTiles)
-					o.postOverride();
-
-				int x = (int) (o.posX / Game.tile_size);
-				int y = (int) (o.posY / Game.tile_size);
-
-				if (!(!Game.fancyTerrain || !Game.enable3d || x < 0 || x >= Game.currentSizeX || y < 0 || y >= Game.currentSizeY))
-					Game.game.heightGrid[x][y] = Math.max(o.getTileHeight(), Game.game.heightGrid[x][y]);
+				o.baseGroundHeight = Game.sampleGroundHeight(o.posX, o.posY);
 			}
 
-		Drawing.drawing.setColor(174, 92, 16);
+			if (Game.enable3d)
+				Game.recomputeHeightGrid();
 
-		double mul = 1;
-		if (Game.angledView)
-			mul = 2;
+			Drawing.drawing.setColor(174, 92, 16);
 
-		Drawing.drawing.fillShadedInterfaceRect(Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY / 2,
-				mul * Game.game.window.absoluteWidth / Drawing.drawing.interfaceScale, mul * Game.game.window.absoluteHeight / Drawing.drawing.interfaceScale);
+			double mul = 1;
+			if (Game.angledView)
+				mul = 2;
+
+			Drawing.drawing.fillShadedInterfaceRect(Drawing.drawing.interfaceSizeX / 2, Drawing.drawing.interfaceSizeY / 2,
+					mul * Game.game.window.absoluteWidth / Drawing.drawing.interfaceScale, mul * Game.game.window.absoluteHeight / Drawing.drawing.interfaceScale);
+		}
 
 		this.drawDefaultBackground();
 
@@ -2131,7 +2188,12 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 
 				mouseObstacle.drawOutline();
 
-				if (mouseObstacleHeight != 1.0 && mouseObstacle.enableStacking)
+				if (mouseObstacle instanceof ObstacleBeatBlock)
+				{
+					Drawing.drawing.setFontSize(16);
+					Drawing.drawing.drawText(mouseObstacle.posX, mouseObstacle.posY, (int) Math.pow(2, mouseObstacleBeatPattern / 2) + (mouseObstacleBeatPattern % 2 == 1 ? "b" : "a"));
+				}
+				else if (mouseObstacleHeight != 1.0 && mouseObstacle.enableStacking)
 				{
 					Drawing.drawing.setFontSize(16);
 					Drawing.drawing.drawText(mouseObstacle.posX, mouseObstacle.posY, mouseObstacleHeight + "");
@@ -2299,6 +2361,10 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 			heightShortcut.imageSizeX = 50 * controlsSizeMultiplier;
 			heightShortcut.imageSizeY = 50 * controlsSizeMultiplier;
 
+			beatPatternShortcut.image = "icons/obstacle_beat.png";
+			beatPatternShortcut.imageSizeX = 50 * controlsSizeMultiplier;
+			beatPatternShortcut.imageSizeY = 50 * controlsSizeMultiplier;
+
 			groupShortcut.image = "icons/id.png";
 			groupShortcut.imageSizeX = 50 * controlsSizeMultiplier;
 			groupShortcut.imageSizeY = 50 * controlsSizeMultiplier;
@@ -2358,7 +2424,12 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 					heightShortcut.draw();
 
 				if (currentPlaceable == Placeable.obstacle && mouseObstacle.enableGroupID)
-					groupShortcut.draw();
+				{
+					if (mouseObstacle instanceof ObstacleBeatBlock)
+						beatPatternShortcut.draw();
+					else
+						groupShortcut.draw();
+				}
 
 				if (currentPlaceable == Placeable.playerTank || currentPlaceable == Placeable.enemyTank)
 					rotateShortcut.draw();
@@ -2386,6 +2457,10 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 		Game.game.solidGrid = new boolean[Game.currentSizeX][Game.currentSizeY];
 		Game.game.unbreakableGrid = new boolean[Game.currentSizeX][Game.currentSizeY];
 
+		Game.currentLevel = new Level(Game.currentLevelString);
+		Game.currentLevel.timed = level.timer > 0;
+		Game.currentLevel.timer = level.timer;
+
 		for (Obstacle o: Game.obstacles)
 		{
 			int x = (int) (o.posX / Game.tile_size);
@@ -2398,11 +2473,13 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 				if (!o.shouldShootThrough)
 					Game.game.unbreakableGrid[x][y] = true;
 			}
-		}
 
-		Game.currentLevel = new Level(Game.currentLevelString);
-		Game.currentLevel.timed = level.timer > 0;
-		Game.currentLevel.timer = level.timer;
+			if (o instanceof ObstacleBeatBlock)
+			{
+				Game.currentLevel.synchronizeMusic = true;
+				Game.currentLevel.beatBlocks |= (int) ((ObstacleBeatBlock) o).beatFrequency;
+			}
+		}
 
 		Game.resetNetworkIDs();
 		for (Movable m: Game.movables)
@@ -2679,6 +2756,22 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 			this.teamNum = i;
 	}
 
+	public int getEditorTeamNum()
+	{
+		if (this.currentPlaceable == Placeable.playerTank)
+			return this.playerTeamNum;
+		else
+			return this.teamNum;
+	}
+
+	public Team getEditorTeam()
+	{
+		if (this.currentPlaceable == Placeable.playerTank)
+			return this.teams.get(this.playerTeamNum);
+		else
+			return this.teams.get(this.teamNum);
+	}
+
 	@Override
 	public ArrayList<TankSpawnMarker> getSpawns()
 	{
@@ -2703,44 +2796,6 @@ public class ScreenLevelEditor extends Screen implements ILevelPreviewScreen
 	public double getScale()
 	{
 		return Drawing.drawing.unzoomedScale * zoom;
-	}
-
-	public static void refreshItemButtons(ArrayList<Item> items, ButtonList buttons, boolean omitPrice)
-	{
-		buttons.buttons.clear();
-
-		for (int i = 0; i < items.size(); i++)
-		{
-			int j = i;
-
-			Button b = new Button(0, 0, 350, 40, items.get(i).name, () ->
-			{
-				ScreenItemEditor s = new ScreenItemEditor(items.get(j), (IItemScreen) Game.screen, omitPrice, true);
-				s.drawBehindScreen = true;
-				Game.screen = s;
-			});
-
-			b.image = items.get(j).icon;
-			b.imageXOffset = - b.sizeX / 2 + b.sizeY / 2 + 10;
-			b.imageSizeX = b.sizeY;
-			b.imageSizeY = b.sizeY;
-
-			if (!omitPrice)
-			{
-				int p = items.get(i).price;
-
-				if (p == 0)
-					b.setSubtext("Free!");
-				else if (p == 1)
-					b.setSubtext("1 coin");
-				else
-					b.setSubtext("%d coins", p);
-			}
-
-			buttons.buttons.add(b);
-		}
-
-		buttons.sortButtons();
 	}
 
 	static abstract class Action

@@ -3,10 +3,10 @@ package tanks.network.event;
 import io.netty.buffer.ByteBuf;
 import tanks.Game;
 import tanks.Player;
-import tanks.hotbar.item.Item;
-import tanks.hotbar.item.ItemBullet;
-import tanks.hotbar.item.ItemEmpty;
-import tanks.hotbar.item.ItemRemote;
+import tanks.item.Item;
+import tanks.item.ItemBullet;
+import tanks.item.ItemEmpty;
+import tanks.item.ItemRemote;
 import tanks.network.NetworkUtils;
 
 import java.util.UUID;
@@ -19,33 +19,41 @@ public class EventSetItem extends PersonalEvent
     public String texture;
     public int count;
     public int bounces = -1;
-    public double range = -1;
+
+    public double lifespan = -1;
+    public double rangeMin = -1;
+    public double rangeMax = -1;
+    public boolean showTrace = true;
 
     public EventSetItem()
     {
 
     }
 
-    public EventSetItem(Player p, int slot, Item item)
+    public EventSetItem(Player p, int slot, Item.ItemStack<?> item)
     {
         this.playerID = p.clientID;
         this.slot = slot;
 
-        if (item.icon == null)
+        if (item.item.icon == null)
             this.texture = "";
         else
-            this.texture = item.icon;
+            this.texture = item.item.icon;
 
         this.count = item.stackSize;
-        this.name = item.name;
+        this.name = item.item.name;
 
-        if (item instanceof ItemBullet)
+        if (item.destroy)
+            this.count = -1;
+
+        if (item.item instanceof ItemBullet)
         {
-            bounces = ((ItemBullet) item).bounces;
-            range = ((ItemBullet) item).getRange();
-
-            if (((ItemBullet) item).className.equals("electric"))
-                bounces = 0;
+            ItemBullet i = (ItemBullet) item.item;
+            bounces = i.bullet.bounces;
+            lifespan = i.bullet.lifespan * i.bullet.speed;
+            rangeMin = i.bullet.getRangeMin();
+            rangeMax = i.bullet.getRangeMax();
+            showTrace = i.bullet.showTrace;
         }
 
     }
@@ -59,7 +67,11 @@ public class EventSetItem extends PersonalEvent
         b.writeInt(this.count);
         NetworkUtils.writeString(b, this.name);
         b.writeInt(this.bounces);
-        b.writeDouble(this.range);
+
+        b.writeDouble(this.lifespan);
+        b.writeDouble(this.rangeMin);
+        b.writeDouble(this.rangeMax);
+        b.writeBoolean(this.showTrace);
     }
 
     @Override
@@ -71,7 +83,11 @@ public class EventSetItem extends PersonalEvent
         this.count = b.readInt();
         this.name = NetworkUtils.readString(b);
         this.bounces = b.readInt();
-        this.range = b.readDouble();
+
+        this.lifespan = b.readDouble();
+        this.rangeMin = b.readDouble();
+        this.rangeMax = b.readDouble();
+        this.showTrace = b.readBoolean();
     }
 
     @Override
@@ -79,17 +95,23 @@ public class EventSetItem extends PersonalEvent
     {
         if (this.clientID == null && this.playerID.equals(Game.clientID))
         {
-            Item i = new ItemRemote();
-            i.stackSize = this.count;
-            i.icon = this.texture;
+            ItemRemote i = new ItemRemote();
+            i.icon = this.texture.equals("") ? null : this.texture;
             i.name = this.name;
-            ((ItemRemote) i).bounces = this.bounces;
-            ((ItemRemote) i).range = this.range;
+            i.bounces = this.bounces;
 
-            if (i.stackSize == 0)
-                i = new ItemEmpty();
+            i.lifespan = this.lifespan;
+            i.rangeMin = this.rangeMin;
+            i.rangeMax = this.rangeMax;
+            i.showTrace = this.showTrace;
 
-            Game.player.hotbar.itemBar.slots[slot] = i;
+            Item.ItemStack<?> s = new ItemRemote.ItemStackRemote(Game.player, i, 0);
+            s.stackSize = this.count;
+
+            if (s.stackSize < 0)
+                s = new ItemEmpty.ItemStackEmpty();
+
+            Game.player.hotbar.itemBar.slots[slot] = s;
         }
     }
 }

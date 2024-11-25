@@ -1,10 +1,8 @@
 package tanks.bullet;
 
-import tanks.Effect;
-import tanks.Game;
-import tanks.Panel;
+import tanks.*;
 import tanks.gui.screen.ScreenGame;
-import tanks.hotbar.item.ItemBullet;
+import tanks.item.ItemBullet;
 import tanks.network.event.EventBulletDestroyed;
 import tanks.network.event.EventBulletInstantWaypoint;
 import tanks.network.event.EventShootBullet;
@@ -12,8 +10,10 @@ import tanks.tank.Tank;
 
 import java.util.ArrayList;
 
-public abstract class BulletInstant extends Bullet
+public class BulletInstant extends Bullet
 {
+	public static String bullet_class_name = "laser";
+
 	public ArrayList<Double> xTargets = new ArrayList<>();
 	public ArrayList<Double> yTargets = new ArrayList<>();
 
@@ -25,12 +25,24 @@ public abstract class BulletInstant extends Bullet
 
 	public boolean expired = false;
 
-	public BulletInstant(double x, double y, int bounces, Tank t, boolean affectsMaxLiveBullets, ItemBullet ib)
+	public BulletInstant()
 	{
-		super(x, y, bounces, t, affectsMaxLiveBullets, ib);
+		this.init();
+	}
+
+	public BulletInstant(double x, double y, Tank t, boolean affectsMaxLiveBullets, ItemBullet.ItemStackBullet ib)
+	{
+		super(x, y, t, affectsMaxLiveBullets, ib);
+		this.init();
+	}
+
+	public void init()
+	{
+		this.typeName = bullet_class_name;
 		this.enableExternalCollisions = false;
 		this.playPopSound = false;
 		this.playBounceSound = false;
+		this.effect = BulletEffect.none;
 	}
 
 	public void saveTarget()
@@ -44,7 +56,7 @@ public abstract class BulletInstant extends Bullet
 		if (Game.effectsEnabled)
 		{
 			double mul = 4;
-			if (this.item.cooldownBase <= 0)
+			if (this.item.item.cooldownBase <= 0)
 				mul = 0.25;
 
 			for (int i = 0; i < this.size * mul * Game.effectMultiplier; i++)
@@ -70,8 +82,6 @@ public abstract class BulletInstant extends Bullet
 	{
 		if (this.expired)
 			return;
-
-		Game.eventsOut.add(new EventShootBullet(this));
 
 		if (!this.tank.isRemote)
 		{
@@ -109,6 +119,9 @@ public abstract class BulletInstant extends Bullet
 		freeIDs.add(this.networkID);
 		idMap.remove(this.networkID);
 
+		if (this.affectsMaxLiveBullets)
+			this.item.liveBullets--;
+
 		this.addDestroyEffect();
 		this.expired = true;
 	}
@@ -116,6 +129,9 @@ public abstract class BulletInstant extends Bullet
 	@Override
 	public void collided()
 	{
+		if (this.hitStun > 0)
+			this.addElectricEffect();
+
 		this.segments.add(new Laser(this.lastX, this.lastY, this.lastZ, this.collisionX, this.collisionY, this.posZ, this.size / 2, this.getAngleInDirection(this.lastX, this.lastY), this.baseColorR, this.baseColorG, this.baseColorB));
 		this.lastX = this.collisionX;
 		this.lastY = this.collisionY;
@@ -128,6 +144,60 @@ public abstract class BulletInstant extends Bullet
 		}
 	}
 
+	public void addElectricEffect()
+	{
+		double dist = Math.sqrt(Math.pow(this.collisionX - this.lastX, 2) + Math.pow(this.collisionY - this.lastY, 2));
+
+		boolean glows = false;
+		double size = 0.25;
+
+		if (Game.fancyBulletTrails)
+		{
+			for (int j = 0; j < 2; j++)
+			{
+				int segs = (int) ((Math.random() * 0.4 + 0.8) * dist / 50);
+
+				double lX = this.lastX;
+				double lY = this.lastY;
+				double lZ = this.lastZ;
+
+				for (int i = 0; i < segs; i++)
+				{
+					double frac = (i + 1.0) / (segs + 1);
+					double nX = (1 - frac) * this.lastX + frac * this.collisionX + (Math.random() - 0.5) * 50;
+					double nY = (1 - frac) * this.lastY + frac * this.collisionY + (Math.random() - 0.5) * 50;
+					double nZ = (1 - frac) * this.lastZ + frac * this.posZ + (Math.random() - 0.5) * 30;
+					Laser l = new Laser(lX, lY, lZ, nX, nY, nZ, this.size * size, this.getAngleInDirection(this.lastX, this.lastY), this.outlineColorR, this.outlineColorG, this.outlineColorB);
+					l.glows = glows;
+					this.segments.add(l);
+					lX = nX;
+					lY = nY;
+					lZ = nZ;
+				}
+				Laser l = new Laser(lX, lY, lZ, this.collisionX, this.collisionY, this.posZ, this.size * size, this.getAngleInDirection(this.lastX, this.lastY), this.outlineColorR, this.outlineColorG, this.outlineColorB);
+				l.glows = glows;
+				this.segments.add(l);
+			}
+		}
+	}
+
+	@Override
+	public void collidedWithNothing()
+	{
+		if (this.damage < 0)
+		{
+			if (this.item.item.cooldownBase > 0)
+				Drawing.drawing.playGlobalSound("heal_impact_1.ogg");
+			else
+			{
+				float freq = (float) (this.frameDamageMultipler / 10);
+				if (Game.game.window.touchscreen)
+					freq = 1;
+				Drawing.drawing.playGlobalSound("heal1.ogg", 1, freq);
+			}
+		}
+	}
+
 	public void remoteShoot()
 	{
 		for (int i = 0; i < xTargets.size() - 1; i++)
@@ -137,15 +207,26 @@ public abstract class BulletInstant extends Bullet
 			double dX = xTargets.get(i + 1) - iX;
 			double dY = yTargets.get(i + 1) - iY;
 
-			this.posX = iX;
-			this.posY = iY;
+			this.posX = iX + dX;
+			this.posY = iY + dY;
 
 			double z = Game.tile_size / 4;
 			if (i == 0)
 				z = this.iPosZ;
 
-			this.segments.add(new Laser(iX + dX, iY + dY, z, iX, iY, Game.tile_size / 4, this.size / 2, this.getAngleInDirection(iX + dX, iY + dY), this.baseColorR, this.baseColorG, this.baseColorB));
+			this.segments.add(new Laser(iX, iY, z, iX + dX, iY + dY, Game.tile_size / 4, this.size / 2, this.getAngleInDirection(iX, iY), this.baseColorR, this.baseColorG, this.baseColorB));
 			this.expired = true;
+
+			if (this.hitStun > 0)
+			{
+				this.lastX = iX;
+				this.lastY = iY;
+				this.lastZ = z;
+				this.collisionX = iX + dX;
+				this.collisionY = iY + dY;
+				this.posZ = Game.tile_size / 4;
+				this.addElectricEffect();
+			}
 		}
 
 		Game.movables.add(this);
@@ -155,6 +236,15 @@ public abstract class BulletInstant extends Bullet
 	@Override
 	public void update()
 	{
+		if (this.delay > 0)
+		{
+			this.delay -= Panel.frameFrequency;
+			return;
+		}
+
+		if (!this.expired)
+			this.shoot();
+
 		boolean finished = true;
 
 		for (Laser s: this.segments)
@@ -189,5 +279,13 @@ public abstract class BulletInstant extends Bullet
 	public void addTrail(boolean redirect)
 	{
 
+	}
+
+	@Override
+	public void collidedWithObject(Movable m)
+	{
+		this.playPopSound = true;
+		super.collidedWithObject(m);
+		this.playPopSound = false;
 	}
 }

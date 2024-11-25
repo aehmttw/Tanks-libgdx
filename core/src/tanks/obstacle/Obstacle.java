@@ -51,6 +51,10 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 	public Class<? extends ShaderGroup> renderer = ShaderObstacle.class;
 	public Class<? extends ShaderGroup> tileRenderer = ShaderGroundObstacle.class;
 
+	/** Obstacles with different render numbers can have different values for their uniforms */
+	public int rendererNumber = 0;
+	public int tileRendererNumber = 0;
+
 	public double posX;
 	public double posY;
 	public double startHeight = 0;
@@ -81,6 +85,8 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 	protected byte[] lastOptions = new byte[default_max_height];
 
 	public double baseGroundHeight;
+
+	public boolean shouldClip = false;
 
 	public Obstacle(String name, double posX, double posY)
 	{
@@ -359,7 +365,7 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 	}
 
 	/**
-	 * Returns height of tile in terms of drawing, to determine faces that should be drawn of tiles next to it
+	 * @return height of tile in terms of drawing, for things like block particle collision
 	 * */
 	public double getTileHeight()
 	{
@@ -367,6 +373,14 @@ public class Obstacle implements IDrawableForInterface, ISolidObject, IDrawableW
 			return 0;
 
 		return this.stackHeight * Game.tile_size;
+	}
+
+	/**
+	 * @return how deep the edges of the tile span - for example, ice tiles go down to -15, but most tiles only go down to 0
+	 */
+	public double getEdgeDrawDepth()
+	{
+		return 0;
 	}
 
 

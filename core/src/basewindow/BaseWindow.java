@@ -4,18 +4,15 @@ import basewindow.transformation.ScaleAboutPoint;
 import basewindow.transformation.Shear;
 import basewindow.transformation.Transformation;
 import basewindow.transformation.Translation;
-import com.badlogic.gdx.Gdx;
-import libgdxwindow.LibGDXWindow;
-import tanks.Game;
 
 import java.io.InputStream;
 import java.net.URL;
-import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 
 public abstract class BaseWindow
 {
+    public String buildDate = "";
     protected ArrayList<String> overrideLocations = new ArrayList<>();
 
     public BaseShapeRenderer shapeRenderer;
@@ -95,7 +92,7 @@ public abstract class BaseWindow
     public double yOffset = 0;
     public double zOffset = 0;
 
-    public Transformation[] baseTransformations = new Transformation[]{new Translation(this, -0.5, -0.5, -1)};
+    public Transformation[] baseTransformations = new Transformation[]{new Translation(this, -0.5, -0.5, -1) /*, new Shear(this, 0, 0, 0, 0, 0, -0.75) */};
     public Transformation[] lightBaseTransformation = new Transformation[]{new ScaleAboutPoint(this, 0.8, 0.8, 0.8, 0.5, 0.5, 0.5), new Shear(this, 0, 0, 0, 0, 0.5, 0.5)};
     public double[] lightVec = new double[]{-0.66666666, 0.66666666, -0.33333333};
 
@@ -124,6 +121,11 @@ public abstract class BaseWindow
     public ShaderGroup currentShaderGroup;
 
     public ShaderProgram currentShader;
+
+    // capsLock and numLock do not work on mac (glfw limitation) :(
+    public boolean shift = false;
+    public boolean capsLock = false;
+    public boolean numLock = false;
 
     public BaseWindow(String name, int x, int y, int z, IUpdater u, IDrawer d, IWindowHandler w, boolean vsync, boolean showMouse)
     {
@@ -199,6 +201,8 @@ public abstract class BaseWindow
     public abstract void loadPerspective();
 
     public abstract void clearDepth();
+
+    public abstract void setWindowTitle(String s);
 
     public abstract String getClipboard();
 

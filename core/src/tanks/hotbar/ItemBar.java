@@ -6,8 +6,8 @@ import tanks.gui.input.InputBindingGroup;
 import tanks.gui.screen.ScreenGame;
 import tanks.gui.screen.ScreenPartyHost;
 import tanks.gui.screen.ScreenPartyLobby;
-import tanks.hotbar.item.Item;
-import tanks.hotbar.item.ItemEmpty;
+import tanks.item.Item;
+import tanks.item.ItemEmpty;
 import tanks.minigames.Arcade;
 import tanks.network.ServerHandler;
 import tanks.network.event.EventSetItem;
@@ -31,7 +31,7 @@ public class ItemBar
 	public static double itemCountG = 255;
 	public static double itemCountB = 255;
 
-	public Item[] slots = new Item[5];
+	public Item.ItemStack<?>[] slots = new Item.ItemStack[5];
 	public Button[] slotButtons = new Button[5];
 
 	public double selectedTimer = 0;
@@ -43,12 +43,12 @@ public class ItemBar
 
 	public Player player;
 
-	protected ItemEmpty defaultItemEmpty = new ItemEmpty();
+	protected ItemEmpty.ItemStackEmpty defaultItemEmpty = new ItemEmpty.ItemStackEmpty();
 
 	public ItemBar(Player p)
 	{
 		for (int i = 0; i < slots.length; i++)
-			slots[i] = new ItemEmpty();
+			slots[i] = new ItemEmpty.ItemStackEmpty();
 
 		this.player = p;
 
@@ -59,29 +59,33 @@ public class ItemBar
 		}
 	}
 
-	public boolean addItem(Item item)
+	public boolean addItem(Item.ItemStack<?> item)
 	{
-		Item i = Item.parseItem(this.player, item.toString());
+		Item.ItemStack<?> i = item.getCopy();
+		i.player = this.player;
 		int emptyAmount = 0;
-		for (Item slot : this.slots)
+		for (Item.ItemStack<?> slot : this.slots)
 		{
-			if (slot.name.equals(i.name) || slot instanceof ItemEmpty)
+			if (slot.item.name.equals(i.item.name) || slot.isEmpty)
 				emptyAmount += i.maxStackSize - slot.stackSize;
 		}
 
-		if (emptyAmount < i.stackSize)
+		if (emptyAmount < i.stackSize && i.maxStackSize > 0)
 			return false;
 
 		for (int x = 0; x < this.slots.length; x++)
 		{
-			if (this.slots[x].name.equals(i.name) && this.slots[x].stackSize >= this.slots[x].maxStackSize)
+			if (this.slots[x].item.name.equals(i.item.name) && ((this.slots[x].stackSize >= this.slots[x].maxStackSize && this.slots[x].maxStackSize > 0) || this.slots[x].stackSize == 0))
 				continue;
 
-			if (this.slots[x].name.equals(i.name))
+			if (this.slots[x].item.name.equals(i.item.name))
 			{
-				if (this.slots[x].stackSize + i.stackSize <= this.slots[x].maxStackSize)
+				if (this.slots[x].stackSize + i.stackSize <= this.slots[x].maxStackSize || this.slots[x].maxStackSize <= 0)
 				{
-					this.slots[x].stackSize += i.stackSize;
+					if (i.stackSize == 0)
+						this.slots[x].stackSize = 0;
+					else
+						this.slots[x].stackSize += i.stackSize;
 
 					if (this.player != Game.player)
 						Game.eventsOut.add(new EventSetItem(this.player, x, this.slots[x]));
@@ -105,9 +109,9 @@ public class ItemBar
 
 		for (int x = 0; x < this.slots.length; x++)
 		{
-			if (this.slots[x] instanceof ItemEmpty)
+			if (this.slots[x].isEmpty)
 			{
-				if (i.stackSize <= i.maxStackSize)
+				if (i.stackSize <= i.maxStackSize || i.maxStackSize <= 0)
 				{
 					this.slots[x] = i;
 
@@ -119,7 +123,7 @@ public class ItemBar
 				else
 				{
 					int remaining = i.stackSize - i.maxStackSize;
-					this.slots[x] = Item.parseItem(this.player, i.toString());
+					this.slots[x] = i.getCopy();
 					this.slots[x].stackSize = this.slots[x].maxStackSize;
 					i.stackSize = remaining;
 
@@ -139,10 +143,10 @@ public class ItemBar
 		if (selected == -1)
 			return false;
 
-		if (slots[selected] instanceof ItemEmpty)
+		if (slots[selected].isEmpty)
 			return false;
 
-		if (slots[selected].rightClick != rightClick)
+		if (slots[selected].item.rightClick != rightClick)
 			return false;
 
 		slots[selected].attemptUse();
@@ -151,7 +155,7 @@ public class ItemBar
 		if (slots[selected].destroy)
 		{
 			destroy = true;
-			slots[selected] = new ItemEmpty();
+			slots[selected] = new ItemEmpty.ItemStackEmpty();
 			this.lastItemSwitch = this.age;
 		}
 
@@ -175,15 +179,15 @@ public class ItemBar
 		return true;
 	}
 
-	public Item getSelectedItem(boolean rightClick)
+	public Item.ItemStack<?> getSelectedItem(boolean rightClick)
 	{
 		if (selected == -1)
 			return null;
 
-		if (slots[selected] instanceof ItemEmpty)
+		if (slots[selected].isEmpty)
 			return null;
 
-		if (slots[selected].rightClick != rightClick)
+		if (slots[selected].item.rightClick != rightClick)
 			return null;
 
 		return slots[selected];
@@ -282,13 +286,13 @@ public class ItemBar
 			}
 
 			Drawing.drawing.setColor(255, 255, 255, (100 - this.player.hotbar.percentHidden) * 2.55);
-			if (slots[i + 2].icon != null)
-				Drawing.drawing.drawInterfaceImage(slots[i + 2].icon, x, y, size, size);
+			if (slots[i + 2].item.icon != null)
+				Drawing.drawing.drawInterfaceImage(slots[i + 2].item.icon, x, y, size, size);
 
 			if (slots[i + 2] != null)
 			{
-				Item item = slots[i + 2];
-				if (item.stackSize > 1)
+				Item.ItemStack<?> item = slots[i + 2];
+				if (item.stackSize > 0)
 				{
 					Drawing.drawing.setColor(itemCountR, itemCountG, itemCountB, (100 - this.player.hotbar.percentHidden) * 2.55);
 
@@ -316,7 +320,7 @@ public class ItemBar
 				Drawing.drawing.setColor(0, 0, 0, Math.min(this.selectedTimer * 2.55 * 2, 255) * (100 - this.player.hotbar.percentHidden) * 0.01);
 
 			Drawing.drawing.setInterfaceFontSize(24);
-			Drawing.drawing.drawInterfaceText(Drawing.drawing.interfaceSizeX / 2, y - 70, this.slots[selected].name);
+			Drawing.drawing.drawInterfaceText(Drawing.drawing.interfaceSizeX / 2, y - 70, this.slots[selected].item.name);
 		}
 
 		if ((this.player.hotbar.persistent || (Game.screen instanceof ScreenGame && ((ScreenGame) Game.screen).shopScreen)) && this.player.hotbar.percentHidden <= 0)
@@ -366,7 +370,7 @@ public class ItemBar
 	{
 		if (this.age - lastItemSwitch < 200)
 		{
-			Item i = defaultItemEmpty;
+			Item.ItemStack<?> i = defaultItemEmpty;
 			if (selected >= 0)
 				i = this.slots[this.selected];
 
@@ -374,9 +378,9 @@ public class ItemBar
 			{
 				Drawing.drawing.setColor(255, 255, 255, Math.min(1, 2 - (this.age - this.lastItemSwitch) / 100.0) * 255);
 
-				String icon = i.icon;
+				String icon = i.item.icon;
 
-				if (i.icon == null)
+				if (i.item.icon == null)
 				{
 					Drawing.drawing.setColor(255, 255, 255, Math.min(1, 2 - (this.age - this.lastItemSwitch) / 100.0) * 127);
 					icon = "noitem.png";

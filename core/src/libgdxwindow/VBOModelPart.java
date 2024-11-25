@@ -1,6 +1,7 @@
 package libgdxwindow;
 
 import basewindow.*;
+import basewindow.transformation.AxisRotation;
 import basewindow.transformation.Rotation;
 import basewindow.transformation.Scale;
 import basewindow.transformation.Translation;
@@ -20,6 +21,67 @@ public class VBOModelPart extends ModelPart
     protected int vertexVBO;
     protected int texVBO;
     protected int normalVBO;
+
+    @Override
+    public void draw(double posX, double posY, double posZ, double sX, double sY, double sZ, AxisRotation[] axisRotations, boolean depthTest)
+    {
+        IBaseShader shader = (IBaseShader) this.window.currentShader;
+        boolean depthMask = this.material.useDefaultDepthMask ? this.window.colorA >= 1.0 : this.material.depthMask;
+
+        window.setDrawMode(-1, depthTest, depthMask, 0);
+        if (window.drawingShadow && (!depthTest || !depthMask))
+            return;
+
+        if (this.material.glow)
+            window.setGlowBlendFunc();
+        else
+            window.setTransparentBlendFunc();
+
+        if (depthTest)
+            window.enableDepthtest();
+        else
+            window.disableDepthtest();
+
+        if (depthMask)
+            window.enableDepthmask();
+        else
+            window.disableDepthmask();
+
+        if (this.material.customLight)
+            window.setMaterialLights(this.material.ambient, this.material.diffuse, this.material.specular, this.material.shininess);
+
+        if (depthTest)
+            window.enableDepthtest();
+        else
+            window.disableDepthtest();
+
+        window.setCelShadingSections(this.material.celSections);
+
+        this.window.setMatrixModelview();
+        this.window.addMatrix();
+        Translation.transform(window, posX / window.absoluteWidth, posY / window.absoluteHeight, posZ / window.absoluteDepth);
+
+        for (AxisRotation a: axisRotations)
+        {
+            a.apply();
+        }
+
+        Scale.transform(window, sX, sY, sZ);
+
+        if (this.material.texture != null)
+            window.setTexture(this.material.texture);
+
+        shader.renderVBO(this.vertexVBO, this.colorVBO, this.texVBO, this.normalVBO, this.shapes.length * 3);
+        window.disableTexture();
+
+        this.window.removeMatrix();
+        this.window.setMatrixProjection();
+
+        window.disableDepthtest();
+
+        if (this.material.customLight)
+            window.disableMaterialLights();
+    }
 
     @Override
     public void draw(double posX, double posY, double posZ, double sX, double sY, double sZ, double yaw, double pitch, double roll, boolean depthTest)

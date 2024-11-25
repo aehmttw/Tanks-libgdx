@@ -1,8 +1,7 @@
 package tanks.tank;
 
 import tanks.Game;
-import tanks.bullet.Bullet;
-import tanks.bullet.BulletHealing;
+import tanks.bullet.DefaultBullets;
 
 /**
  * A tank which adds extra health to its allies and becomes explosive as a last stand
@@ -19,16 +18,12 @@ public class TankMedic extends TankAIControlled
 		this.maxSpeed = 0.75;
 		this.enableMineLaying = false;
 		this.enablePredictiveFiring = false;
-		this.bullet.maxLiveBullets = 1;
 		this.cooldownRandom = 0;
 		this.cooldownBase = 0;
 		this.turretAimSpeed = 0.02;
-		this.bullet.bounces = 0;
-		this.bullet.effect = Bullet.BulletEffect.none;
-		this.bullet.damage = 0.01;
-		this.bullet.bulletClass = BulletHealing.class;
-		this.bullet.cooldownBase = 0;
-		this.bullet.name = "Healing ray";
+		this.setBullet(DefaultBullets.healing_ray);
+		this.bullet.maxLiveBullets = 1;
+		this.bulletItem.item.cooldownBase = 0;
 		this.turnChance = 0.001;
 		this.enablePathfinding = true;
 		this.seekChance = 0.01;

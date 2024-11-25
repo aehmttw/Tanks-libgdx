@@ -1,9 +1,13 @@
 package basewindow;
 
+import basewindow.transformation.AxisRotation;
+import tanks.Drawing;
+import tanks.tankson.Serializable;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class Model implements IModel
+public class Model implements IModel, Serializable
 {
     public static Material defaultMaterial = new Material("");
 
@@ -41,7 +45,6 @@ public class Model implements IModel
     public Model(BaseWindow window, String dir, ArrayList<String> lines)
     {
         this();
-
         this.file = dir;
 
         this.window = window;
@@ -389,6 +392,13 @@ public class Model implements IModel
             m.draw(posX, posY, sX, sY, yaw);
     }
 
+    @Override
+    public void draw(double posX, double posY, double posZ, double sX, double sY, double sZ, AxisRotation[] axisRotations, boolean depthTest)
+    {
+        for (ModelPart m: this.models)
+            m.draw(posX, posY, posZ, sX, sY, sZ, axisRotations, depthTest);
+    }
+
     public void draw(double posX, double posY, double posZ, double sX, double sY, double sZ, double yaw, double pitch, double roll, boolean depthTest)
     {
         for (ModelPart m: this.models)
@@ -484,5 +494,10 @@ public class Model implements IModel
     public String toString()
     {
         return this.file;
+    }
+
+    public String serialize(){ return this.toString(); }
+    public Serializable deserialize(String s) {
+        return Drawing.drawing.createModel(s);
     }
 }
